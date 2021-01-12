@@ -16,6 +16,13 @@ double deniv_pos = 0.0, deniv_neg = 0.0, distance_tot = 0.0, deniv = 0.0;
 //Valeurs arbitraires, pour ne pas avoir 0,0 au milieu d'un océan.
 double prev_pos_lat = 45.8992655922, prev_pos_lng = 6.1289521798, prev_pos_alt = 453.0;
 
+//Variables pour stocker les données GPS, utilisées avec un mutex
+int gps_satellites = 0;
+double gps_lat = prev_pos_lat, gps_lng = prev_pos_lng, gps_alt = prev_pos_alt, gps_speed = 0.0;
+
+//Mutex pour synchroniser l'utilisation des données GPS
+SemaphoreHandle_t xSemaphore_GPS_Data = NULL;
+
 //Seuil d'admission de positions identiques, distance entre les positions en mètres
 const float SEUIL_DIST = 1.05;
 
@@ -118,12 +125,16 @@ void setup()
   display.clear();
   display.drawStringMaxWidth(0, 0, 128, "Initializing, please wait...");
   display.display();
+  delay(100);
 
   //Création du Mutex pour les variables d'accélération et d'angle
   xSemaphore_AccelGyro_Data = xSemaphoreCreateMutex();
 
   //Création du Mutex pour la communication I2C thread-safe
   xSemaphore_I2C_Communication = xSemaphoreCreateMutex();
+
+  //Création du Mutex pour les données GPS
+  xSemaphore_GPS_Data = xSemaphoreCreateMutex();
 
   //Ouverture des liaisons séries
   Serial.begin(115200);
@@ -140,6 +151,12 @@ void setup()
   Serial.println("*************************************");
   Serial.println("Launching GPS...");
 
+  
+  display.clear();
+  display.drawStringMaxWidth(0, 0, 128, "Starting GPS, please wait...");
+  display.display();
+  delay(100);
+
   //Lancement du GPS, 10 secondes allouées
   for (unsigned long start = millis(); millis() - start < 10000;)
   {
@@ -154,7 +171,11 @@ void setup()
   prev_pos_lat = gps.location.lat();
   prev_pos_lng = gps.location.lng();
   prev_pos_alt = gps.altitude.meters();
-
+  
+  display.clear();
+  display.drawStringMaxWidth(0, 0, 128, "Getting accurate loc");
+  display.display();
+  delay(100);
 
   //while( (abs(prev_pos_lat) <= 0.001) && (abs(prev_pos_lng) <= 0.001) && (abs(prev_pos_alt) <= 0.1) ) {
   while(!gps.location.isValid() || !gps.date.isValid() || !gps.time.isValid()) {
@@ -216,6 +237,12 @@ void setup()
 
   Serial.println("+++++++++++++++++++++++++++++++++++++");
   Serial.println("Setting board time from GPS data");
+  
+  display.clear();
+  display.drawStringMaxWidth(0, 0, 128, "Setting time");
+  display.display();
+  delay(100);
+  
   date_Years = gps.date.year();
   date_Months = gps.date.month();
   date_Days = gps.date.day();
@@ -231,7 +258,12 @@ void setup()
   Serial.println(date_str);
   Serial.println("+++++++++++++++++++++++++++++++++++++\n");
 
-
+  
+  
+  display.clear();
+  display.drawStringMaxWidth(0, 0, 128, "Calibrating gyro/accel");
+  display.display();
+  delay(100);
 
   //Initialisation et calibration de l'accéléromètre/gyroscope
   mpu.Initialize();
@@ -254,8 +286,8 @@ void setup()
   display.clear();
   display.drawStringMaxWidth(0, 0, 128, "Application launched !");
   display.display();
-
   delay(2000);
+  
   display.clear();
   display.display();
 
@@ -285,20 +317,22 @@ void setup()
 
 
 
-void displayGPS() {
+void displayGPS(int gps_nb_sats, double gps_latitude, double gps_longitude, double gps_altitude, double gps_spd) {
+/* Inutile désormais
     sprintf(gps_time_str, "%02u:%02u:%02u", gps.time.hour(), gps.time.minute(), gps.time.second());
     sprintf(gps_date_str, "%02u/%02u/%02u", gps.date.day(), gps.date.month(), gps.date.year());
-  
+*/
+
     Serial.print("Satellites : ");
-    Serial.print(gps.satellites.value());
+    Serial.print(gps_nb_sats);
     Serial.print("   Latitude : ");
-    Serial.print(gps.location.lat(), 10);
+    Serial.print(gps_latitude, 10);
     Serial.print("   Longitude : ");
-    Serial.print(gps.location.lng(), 10);
+    Serial.print(gps_longitude, 10);
     Serial.print("   Altitude : ");
-    Serial.print(gps.altitude.meters(), 2);
+    Serial.print(gps_altitude, 2);
     Serial.print("   Vitesse : ");
-    Serial.print(gps.speed.kmph(), 2);
+    Serial.print(gps_spd, 2);
     Serial.print("   Heure : ");
     Serial.print(gps_time_str);
     Serial.print("   Date : ");
@@ -315,11 +349,11 @@ void displayGPS() {
   
     double distance_m =
       TinyGPSPlus::distanceBetween(
-        gps.location.lat(),
-        gps.location.lng(),
+        gps_latitude,
+        gps_longitude,
         prev_pos_lat,
         prev_pos_lng);
-    deniv = prev_pos_alt - gps.altitude.meters();
+    deniv = prev_pos_alt - gps_altitude;
       
     Serial.print("            Prev latitude : ");
     Serial.print(prev_pos_lat, 10);
@@ -348,9 +382,9 @@ void displayGPS() {
       }
       distance_tot += distance_m;
       
-      prev_pos_lat = gps.location.lat();
-      prev_pos_lng = gps.location.lng();
-      prev_pos_alt = gps.altitude.meters();
+      prev_pos_lat = gps_latitude;
+      prev_pos_lng = gps_longitude;
+      prev_pos_alt = gps_altitude;
     }
     
     Serial.print("            Distance totale (m) : ");
@@ -371,27 +405,44 @@ void displayGPS() {
 
 
 void readGPSAndDisplayData(void * pvParameters) {
-  
+  vTaskDelay(5000);
   double temp_accel_X = 0.0, temp_accel_Y = 0.0, temp_accel_Z = 0.0, temp_angle_X = 0.0, temp_angle_Y = 0.0, temp_angle_Z = 0.0;
-
+  
+  int temp_gps_satellites = 0;
+  double temp_gps_lat = 0.0, temp_gps_lng = 0.0, temp_gps_alt = 0.0, temp_gps_speed = 0.0;
+  
   for(;;) {
 
     
-   /*
+/* Inutile désormais
     while (ss.available() > 0) {
       //Serial.write(c); // uncomment this line if you want to see the GPS data flowing
       if(gps.encode(ss.read())) {
         displayGPS();
       }
     }
-    */
+*/
 
-
-
-
-    
     //TODO: écrire les variables dans le fichier session
+
     
+    if( xSemaphoreTake( xSemaphore_GPS_Data, ( TickType_t ) 100 ) == pdTRUE ) {
+      //Mutex obtenu, affichage des données GPS
+      temp_gps_satellites = gps_satellites;
+      temp_gps_lat = gps_lat;
+      temp_gps_lng = gps_lng;
+      temp_gps_alt = gps_alt;
+      temp_gps_speed = gps_speed;
+  
+      //Relâche le Mutex une fois l'affichage des valeurs effectué
+      xSemaphoreGive( xSemaphore_GPS_Data );
+    }
+    else{
+      //Impossible d'obtenir le Mutex (logiquement ne devrait pas arriver)
+      Serial.println("@@@@@@@@@@@@@@@@@@@\n  Mutex indisponible pour afficher les données GPS\n@@@@@@@@@@@@@@@@@@@");
+    }
+    
+    displayGPS(temp_gps_satellites, temp_gps_lat, temp_gps_lng, temp_gps_alt, temp_gps_speed);
 
     if( xSemaphoreTake( xSemaphore_AccelGyro_Data, ( TickType_t ) 100 ) == pdTRUE ) {
         //Mutex obtenu, récupération des valeurs d'angle et d'accélération
@@ -433,7 +484,21 @@ void loop(){
   while (ss.available() > 0) {
     //Serial.write(c); // uncomment this line if you want to see the GPS data flowing
     if(gps.encode(ss.read())) {
-      displayGPS();
+      if( xSemaphoreTake( xSemaphore_GPS_Data, ( TickType_t ) 100 ) == pdTRUE ) {
+        //Mutex obtenu, mise à jour des données GPS
+        gps_satellites = gps.satellites.value();
+        gps_lat = gps.location.lat();
+        gps_lng = gps.location.lng();
+        gps_alt = gps.altitude.meters();
+        gps_speed = gps.speed.kmph();
+  
+        //Relâche le Mutex une fois la récupération des valeurs effectuées
+        xSemaphoreGive( xSemaphore_GPS_Data );
+      }
+      else{
+        //Impossible d'obtenir le Mutex (logiquement ne devrait pas arriver)
+        Serial.println("===================\n  Mutex indisponible pour mettre à jour les valeurs GPS\n===================");
+      }
     }
   }
 

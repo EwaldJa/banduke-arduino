@@ -35,7 +35,6 @@ SoftwareSerial ss(rxPin, txPin);
 /*##################################################################################*/
 /*#######                Librairies et variables pour l'écran                #######*/
 /*##################################################################################*/
-/*
 //Import des librairies
 #include <Wire.h>               
 #include "SSD1306Wire.h"        
@@ -43,7 +42,6 @@ SoftwareSerial ss(rxPin, txPin);
 
 //Instanciation
 SSD1306Wire display(0x3c, SDA, SCL);   
-*/
 /*##################################################################################*/
 
 
@@ -53,7 +51,6 @@ SSD1306Wire display(0x3c, SDA, SCL);
 /*##################################################################################*/
 /*#######    Librairies et variables pour l'accéléromètre et le gyroscope    #######*/
 /*##################################################################################*/
-/*
 //Import des librairies
 #include <Arduino.h>
 #include <TinyMPU6050.h>
@@ -71,7 +68,6 @@ double average_angle_X = 0.0, average_angle_Y = 0.0, average_angle_Z = 0.0, aver
 
 //Instanciation
 MPU6050 mpu (Wire);
-*/
 /*##################################################################################*/
 
 
@@ -90,7 +86,6 @@ MPU6050 mpu (Wire);
 //Variables pour stocker l'heure et la date en format DD-MM-SS et DD/MM/YY
 char time_str[16];
 char date_str[16];
-
 /*##################################################################################*/
 
 
@@ -100,14 +95,12 @@ char date_str[16];
 /*##################################################################################*/
 /*#######                  Librairies et variables globales                  #######*/
 /*##################################################################################*/
-/*
 //Librairie pour manipuler les nombres
 #include <math.h>
 
 
 //Semaphore pour la communication I2C qui est non thread-safe
 SemaphoreHandle_t xSemaphore_I2C_Communication = NULL;
-*/
 /*##################################################################################*/
 
 
@@ -125,13 +118,13 @@ void setup()
   display.clear();
   display.drawStringMaxWidth(0, 0, 128, "Initializing, please wait...");
   display.display();
-
+*/
   //Création du Mutex pour les variables d'accélération et d'angle
   xSemaphore_AccelGyro_Data = xSemaphoreCreateMutex();
 
   //Création du Mutex pour la communication I2C thread-safe
   xSemaphore_I2C_Communication = xSemaphoreCreateMutex();
-*/
+
   //Ouverture des liaisons séries
   Serial.begin(115200);
   while (!Serial)
@@ -239,7 +232,7 @@ void setup()
   Serial.println("+++++++++++++++++++++++++++++++++++++\n");
 */
 
-/*
+
   //Initialisation et calibration de l'accéléromètre/gyroscope
   mpu.Initialize();
   
@@ -257,6 +250,7 @@ void setup()
   Serial.println("Accel Offsets: None");
   Serial.println("=====================================\n");
 
+/*
   display.clear();
   display.drawStringMaxWidth(0, 0, 128, "Application launched !");
   display.display();
@@ -265,7 +259,8 @@ void setup()
   display.clear();
   display.display();
 */
-/*
+
+
   //Création de la routine de lecture GPS et affichage des données
   xTaskCreatePinnedToCore(
                     readGPSAndDisplayData,   // Task function. 
@@ -275,13 +270,20 @@ void setup()
                     5,           // priority of the task 
                     NULL,      // Task handle to keep track of created task 
                     0);          // pin task to core 0
-*/
+
     
   
   Serial.println("Application launched ! \n");
   Serial.println("############################################################################################################\n");
 
 }
+
+
+
+
+
+
+
 
 void displayGPS() {
     sprintf(gps_time_str, "%02u:%02u:%02u", gps.time.hour(), gps.time.minute(), gps.time.second());
@@ -362,9 +364,13 @@ void displayGPS() {
     Serial.println("");
 }
 
+
+
+
+
+
+
 void readGPSAndDisplayData(void * pvParameters) {
-  Serial.print("readGPSAndDisplayData tourne sur le coeur ");
-  Serial.println(xPortGetCoreID());
   
   double temp_accel_X = 0.0, temp_accel_Y = 0.0, temp_accel_Z = 0.0, temp_angle_X = 0.0, temp_angle_Y = 0.0, temp_angle_Z = 0.0;
 
@@ -386,7 +392,7 @@ void readGPSAndDisplayData(void * pvParameters) {
     
     //TODO: écrire les variables dans le fichier session
     
-/*
+
     if( xSemaphoreTake( xSemaphore_AccelGyro_Data, ( TickType_t ) 100 ) == pdTRUE ) {
         //Mutex obtenu, récupération des valeurs d'angle et d'accélération
         temp_angle_X = angle_X;
@@ -413,7 +419,7 @@ void readGPSAndDisplayData(void * pvParameters) {
       Serial.println(angle_str);
       Serial.println(accel_str);
 
-*/
+
 /*
       if( xSemaphoreTake( xSemaphore_I2C_Communication, ( TickType_t ) 100 ) == pdTRUE ) {
         //Mutex I2C obtenu, affichage des valeurs d'angle et d'accélération
@@ -460,7 +466,7 @@ void loop(){
       displayGPS();
     }
   }
-/*
+
   for (int i = 0; i < AVERAGING_VALUES;) {
 
     if( xSemaphoreTake( xSemaphore_I2C_Communication, ( TickType_t ) 20 ) == pdTRUE ) {
@@ -485,7 +491,7 @@ void loop(){
       Serial.println("¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤\n  Mutex I2C indisponible pour extraire les valeurs d'accélération et d'angle du capteur\n¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤");
     }
   }
-*/ 
+
      
   /*
   Serial.println("========================");
@@ -504,7 +510,7 @@ void loop(){
   Serial.println(mpu.GetAccZ(), 2);
   Serial.println("========================");
   */
-/*    
+  
   if( xSemaphoreTake( xSemaphore_AccelGyro_Data, ( TickType_t ) 50 ) == pdTRUE ) {
     //Mutex obtenu, mise à jour des valeurs d'angle et d'accélération
     
@@ -516,7 +522,7 @@ void loop(){
     accel_X = (average_accel_X / AVERAGING_VALUES);
     accel_Y = (average_accel_Y / AVERAGING_VALUES);
     accel_Z = (average_accel_Z / AVERAGING_VALUES);
- */   
+    
 
     /*
     Serial.println("************************");
@@ -535,7 +541,7 @@ void loop(){
     Serial.println(accel_Z, 2);
     Serial.println("************************");
     */
-/*
+
     //Relâche le Mutex une fois la mise à jour des valeurs effectuées
     xSemaphoreGive( xSemaphore_AccelGyro_Data );
   }
@@ -551,5 +557,5 @@ void loop(){
   average_accel_Y = 0.0;
   average_accel_Z = 0.0;
   
-*/   
+   
 }

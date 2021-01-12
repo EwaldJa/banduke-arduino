@@ -24,7 +24,7 @@ double gps_lat = prev_pos_lat, gps_lng = prev_pos_lng, gps_alt = prev_pos_alt, g
 SemaphoreHandle_t xSemaphore_GPS_Data = NULL;
 
 //Seuil d'admission de positions identiques, distance entre les positions en mètres
-const float SEUIL_DIST = 1.05;
+const float SEUIL_DIST = 2.2;
 
 //Variables pour stocker l'heure et la date en format DD-MM-SS et DD/MM/YY
 char gps_time_str[16];
@@ -231,6 +231,15 @@ void setup()
   Serial.print(gps_time_str);
   Serial.print("   Date : ");
   Serial.println(gps_date_str);
+
+  prev_pos_lat = gps.location.lat();
+  prev_pos_lng = gps.location.lng();
+  prev_pos_alt = gps.altitude.meters();
+  gps_satellites = gps.satellites.value();
+  gps_lat = gps.location.lat(), 
+  gps_lng = gps.location.lng(), 
+  gps_alt = gps.altitude.meters(), 
+  gps_speed = gps.speed.kmph();
   Serial.println("*************************************\n");
 
 
@@ -405,7 +414,7 @@ void displayGPS(int gps_nb_sats, double gps_latitude, double gps_longitude, doub
 
 
 void readGPSAndDisplayData(void * pvParameters) {
-  vTaskDelay(5000);
+  vTaskDelay(3000);
   double temp_accel_X = 0.0, temp_accel_Y = 0.0, temp_accel_Z = 0.0, temp_angle_X = 0.0, temp_angle_Y = 0.0, temp_angle_Z = 0.0;
   
   int temp_gps_satellites = 0;

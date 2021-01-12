@@ -79,9 +79,9 @@ MPU6050 mpu (Wire);
 /*##################################################################################*/
 //Import des librairies
 
-//#include <TimeLib.h>
-//int date_Years;
-//byte date_Months, date_Days, time_Hours, time_Minutes, time_Seconds;
+#include <TimeLib.h>
+int date_Years;
+byte date_Months, date_Days, time_Hours, time_Minutes, time_Seconds;
 
 //Variables pour stocker l'heure et la date en format DD-MM-SS et DD/MM/YY
 char time_str[16];
@@ -213,7 +213,7 @@ void setup()
   Serial.println("*************************************\n");
 
 
-/*
+
   Serial.println("+++++++++++++++++++++++++++++++++++++");
   Serial.println("Setting board time from GPS data");
   date_Years = gps.date.year();
@@ -230,7 +230,7 @@ void setup()
   Serial.print("Board date : ");
   Serial.println(date_str);
   Serial.println("+++++++++++++++++++++++++++++++++++++\n");
-*/
+
 
 
   //Initialisation et calibration de l'accéléromètre/gyroscope
@@ -304,14 +304,14 @@ void displayGPS() {
     Serial.print("   Date : ");
     Serial.print(gps_date_str);
 
-/*
+
     sprintf(time_str, "%02u:%02u:%02u", hour(), minute(), second());
     sprintf(date_str, "%02u/%02u/%02u", day(), month(), year());
     Serial.print("   Board time : ");
     Serial.print(time_str);
     Serial.print("   Board date : ");
     Serial.println(date_str);
-*/
+
   
     double distance_m =
       TinyGPSPlus::distanceBetween(
@@ -320,7 +320,7 @@ void displayGPS() {
         prev_pos_lat,
         prev_pos_lng);
     deniv = prev_pos_alt - gps.altitude.meters();
-     /*  
+      
     Serial.print("            Prev latitude : ");
     Serial.print(prev_pos_lat, 10);
     Serial.print("   longitude : ");
@@ -331,13 +331,13 @@ void displayGPS() {
     Serial.print(distance_m, 2);
     Serial.print("   Dénivelé (m) avec la dernière pos : ");
     Serial.println(deniv, 2);
-    */
+    
     
     //Réduction du bruit sur la position GPS
     if(distance_m < SEUIL_DIST) {
-      /*
+      
       Serial.println("  Positions identiques !");
-      */
+      
     }
     else {
       if(deniv < 0.0) {
@@ -352,7 +352,7 @@ void displayGPS() {
       prev_pos_lng = gps.location.lng();
       prev_pos_alt = gps.altitude.meters();
     }
-    /*
+    
     Serial.print("            Distance totale (m) : ");
     Serial.print(distance_tot, 2);
     Serial.print("   dénivelé positif (m) : ");
@@ -360,7 +360,7 @@ void displayGPS() {
     Serial.print("   dénivelé négatif (m) : ");
     Serial.println(deniv_neg, 2);
     Serial.println("");
-    */
+    
     Serial.println("");
 }
 

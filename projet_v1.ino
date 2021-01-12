@@ -109,7 +109,7 @@ SemaphoreHandle_t xSemaphore_I2C_Communication = NULL;
 
 void setup()
 {
-/*
+
   //Initialisation de l'écran
   display.init();
   display.flipScreenVertically();
@@ -118,7 +118,7 @@ void setup()
   display.clear();
   display.drawStringMaxWidth(0, 0, 128, "Initializing, please wait...");
   display.display();
-*/
+
   //Création du Mutex pour les variables d'accélération et d'angle
   xSemaphore_AccelGyro_Data = xSemaphoreCreateMutex();
 
@@ -250,7 +250,7 @@ void setup()
   Serial.println("Accel Offsets: None");
   Serial.println("=====================================\n");
 
-/*
+
   display.clear();
   display.drawStringMaxWidth(0, 0, 128, "Application launched !");
   display.display();
@@ -258,7 +258,7 @@ void setup()
   delay(2000);
   display.clear();
   display.display();
-*/
+
 
 
   //Création de la routine de lecture GPS et affichage des données
@@ -420,39 +420,9 @@ void readGPSAndDisplayData(void * pvParameters) {
       Serial.println(accel_str);
 
 
-/*
-      if( xSemaphoreTake( xSemaphore_I2C_Communication, ( TickType_t ) 100 ) == pdTRUE ) {
-        //Mutex I2C obtenu, affichage des valeurs d'angle et d'accélération
-*/
-/*
-        display.clear();
-        display.drawStringMaxWidth(0, 0, 128, accel_str);
-        display.display();
-*/
 
-/*
-        display.clear();
-        display.drawStringMaxWidth(0, 0, 128,
-           String(prev_pos_lat, 3) + 
-           ";" + String(prev_pos_lng, 3) + "\n" + 
-           "alt:" + String(prev_pos_alt, 0) +
-           ",sat:" + gps.satellites.value());
-        display.display();
-*/
-/*
-        display.clear();
-        //String disp_str = String(time_str) + "\n" + String(date_str);
-        display.drawStringMaxWidth(0, 0, 128, "coucou");
-        display.display();
-            
-        //Relâche le Mutex une fois l'affichage des valeurs effectué
-        xSemaphoreGive( xSemaphore_I2C_Communication );
-      }
-      else{
-        //Impossible d'obtenir le Mutex de communication I2C
-        Serial.println("~~~~~~~~~~~~~~~~~~~\n  Mutex I2C indisponible pour afficher les valeurs d'accélération et d'angle\n~~~~~~~~~~~~~~~~~~~");
-      }
-*/
+      
+
       delay(100);
   }
 }
@@ -556,6 +526,37 @@ void loop(){
   average_accel_X = 0.0;
   average_accel_Y = 0.0;
   average_accel_Z = 0.0;
-  
+
+  if( xSemaphoreTake( xSemaphore_I2C_Communication, ( TickType_t ) 100 ) == pdTRUE ) {
+        //Mutex I2C obtenu, affichage des valeurs d'angle et d'accélération
+
+/*
+        display.clear();
+        display.drawStringMaxWidth(0, 0, 128, accel_str);
+        display.display();
+
+*/
+
+        display.clear();
+        display.drawStringMaxWidth(0, 0, 128,
+           String(prev_pos_lat, 3) + 
+           ";" + String(prev_pos_lng, 3) + "\n" + 
+           "alt:" + String(prev_pos_alt, 0) +
+           ",sat:" + gps.satellites.value());
+        display.display();
+
+/*
+        display.clear();
+        //String disp_str = String(time_str) + "\n" + String(date_str);
+        display.drawStringMaxWidth(0, 0, 128, "coucou");
+        display.display();
+*/            
+        //Relâche le Mutex une fois l'affichage des valeurs effectué
+        xSemaphoreGive( xSemaphore_I2C_Communication );
+      }
+      else{
+        //Impossible d'obtenir le Mutex de communication I2C
+        Serial.println("~~~~~~~~~~~~~~~~~~~\n  Mutex I2C indisponible pour afficher les valeurs d'accélération et d'angle\n~~~~~~~~~~~~~~~~~~~");
+      }
    
 }

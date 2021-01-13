@@ -11,7 +11,7 @@ int rxPin = 16;
 int txPin = 17;
 
 //Variables pour stocker les écarts entre les positions
-double deniv_pos = 0.0, deniv_neg = 0.0, distance_tot = 0.0, deniv = 0.0;
+double deniv_pos = 0.0, deniv_neg = 0.0, distance_tot = 0.0, distance_m = 0.0, deniv = 0.0;
 
 //Valeurs arbitraires, pour ne pas avoir 0,0 au milieu d'un océan.
 double prev_pos_lat = 45.8992655922, prev_pos_lng = 6.1289521798, prev_pos_alt = 453.0;
@@ -26,9 +26,9 @@ SemaphoreHandle_t xSemaphore_GPS_Data = NULL;
 //Seuil d'admission de positions identiques, distance entre les positions en mètres
 const float SEUIL_DIST = 2.2;
 
-//Variables pour stocker l'heure et la date en format DD-MM-SS et DD/MM/YY
-char gps_time_str[16];
-char gps_date_str[16];
+//Variables pour stocker l'heure et la date en format HH-MM-SS et DD/MM/YY
+char gps_time_str[9];
+char gps_date_str[9];
 
 //Instanciation
 TinyGPSPlus gps;
@@ -85,14 +85,14 @@ MPU6050 mpu (Wire);
 /*#######  Librairies et variables pour la gestion de la date et de l'heure  #######*/
 /*##################################################################################*/
 //Import des librairies
-
+#define TIMELIB_ENABLE_MILLIS
 #include <TimeLib.h>
 int date_Years;
 byte date_Months, date_Days, time_Hours, time_Minutes, time_Seconds;
 
-//Variables pour stocker l'heure et la date en format DD-MM-SS et DD/MM/YY
-char time_str[16];
-char date_str[16];
+//Variables pour stocker l'heure et la date en format HH-MM-SS et DD/MM/YY
+char time_str[9];
+char date_str[9];
 /*##################################################################################*/
 
 
@@ -108,9 +108,11 @@ char date_str[16];
 #include "SPI.h"
 
 
-//Dossier racine contenant les dossiers journaliers, contenant eux-mêmes les fichiers sessions
-const char * projectRootDir = "/BanDuke";
-
+//Noms des dossiers et fichiers utilisés dans la carte SD
+const char * projectRootDir = "/BanDuke"; //Dossier racine du projet, contenant les dossiers journaliers, eux-mêmes contenant les fichiers sessions
+char dayDir_FullPath[18]; //Dossier journalier, contenant les fichiers sessions, 1 caractère de plus que le chemin complet pour que la chaîne soie NULL-terminated
+char sessionFile_FullPath[31]; //1 caractère de plus que le chemin complet (3 noms de fichiers 8*3 = 24, 2 séparateur 24+2=26, . et extension 26+4 = 30) pour que la chaîne soie NULL-terminated
+      
 //Pins changeables par l'utilisateur
 int CSpin = 4;
 /*##################################################################################*/
@@ -275,17 +277,17 @@ bool appendToSessionFile(fs::FS &fs, const char * sessionFile_FullPath, char * m
 
   File sessionFile = fs.open(sessionFile_FullPath, FILE_APPEND);
   if(!sessionFile){
-    Serial.printf("Failed to open file '%s' for appending", sessionFile_FullPath);
+    Serial.printf("Failed to open file '%s' for appending\n", sessionFile_FullPath);
     sessionFile.close();
     return false;
   }
   if(sessionFile.print(messageToAppend)){
-    Serial.printf("Message '%s' appended", messageToAppend);
+    Serial.printf("Message '%s' appended\n", messageToAppend);
     sessionFile.close();
     return true;
   } 
   else {
-    Serial.printf("Append of '%s' failed", messageToAppend);
+    Serial.printf("Append of '%s' failed\n", messageToAppend);
     sessionFile.close();
     return false;
   }
@@ -364,6 +366,7 @@ void setup()
   delay(100);
 
   //while( (abs(prev_pos_lat) <= 0.001) && (abs(prev_pos_lng) <= 0.001) && (abs(prev_pos_alt) <= 0.1) ) {
+  /*
   while(!gps.location.isValid() || !gps.date.isValid() || !gps.time.isValid()) {
     while (ss.available())
     {
@@ -392,15 +395,15 @@ void setup()
         prev_pos_lat = gps.location.lat();
         prev_pos_lng = gps.location.lng();
         prev_pos_alt = gps.altitude.meters();
-        sprintf(gps_time_str, "%02u:%02u:%02u", gps.time.hour(), gps.time.minute(), gps.time.second());
-        sprintf(gps_date_str, "%02u/%02u/%02u", gps.date.day(), gps.date.month(), gps.date.year());
+        snprintf(gps_time_str, 9, "%02u:%02u:%02u", gps.time.hour(), gps.time.minute(), gps.time.second());
+        snprintf(gps_date_str, 9, "%02u/%02u/%02u", gps.date.day(), gps.date.month(), gps.date.year());
       }
     }
   }
+  */
 
-
-  sprintf(gps_time_str, "%02u:%02u:%02u", gps.time.hour(), gps.time.minute(), gps.time.second());
-  sprintf(gps_date_str, "%02u/%02u/%02u", gps.date.day(), gps.date.month(), gps.date.year());
+  snprintf(gps_time_str, 9, "%02u:%02u:%02u", gps.time.hour(), gps.time.minute(), gps.time.second());
+  snprintf(gps_date_str, 9, "%02u/%02u/%02u", gps.date.day(), gps.date.month(), gps.date.year());
   
   Serial.println("GPS tracking current position");
   Serial.print("Satellites : ");
@@ -445,8 +448,8 @@ void setup()
   time_Minutes = gps.time.minute();
   time_Seconds = gps.time.second();
   setTime(time_Hours, time_Minutes, time_Seconds, date_Days, date_Months, date_Years);
-  sprintf(time_str, "%02u:%02u:%02u", hour(), minute(), second());
-  sprintf(date_str, "%02u/%02u/%02u", day(), month(), year());
+  snprintf(time_str, 9, "%02u:%02u:%02u", hour(), minute(), second());
+  snprintf(date_str, 9, "%02u/%02u/%02u", day(), month(), year());
   Serial.print("Board time : ");
   Serial.println(time_str);
   Serial.print("Board date : ");
@@ -491,10 +494,10 @@ void setup()
   double freeSpace = 100.0 * freeMegaBytes / totalMegaBytes;
   
   if (freeSpace < 10.0) {
-    Serial.printf("WARNING ! Only %lluMB (%d%) of free space remaining (%lluMB used of a total of %lluMB space)", freeMegaBytes, usedMegaBytes, totalMegaBytes);
+    Serial.printf("WARNING ! Only %lluMB (%d%%) of free space remaining (%lluMB used of a total of %lluMB space)", freeMegaBytes, usedMegaBytes, totalMegaBytes);
   }
   else {
-    Serial.printf("%lluMB (%d%) of free space remaining (%lluMB used of a total of %lluMB space)", freeMegaBytes, usedMegaBytes, totalMegaBytes);
+    Serial.printf("%lluMB (%d%%) of free space remaining (%lluMB used of a total of %lluMB space)", freeMegaBytes, usedMegaBytes, totalMegaBytes);
   }
 
   if(!checkOrCreateRootDir(SD, projectRootDir)) {
@@ -515,8 +518,7 @@ void setup()
     display.display();
     delay(1000);
   
-    char dayDir_FullPath[18]; //1 caractère de plus pour que la chaîne soie NULL-terminated
-    sprintf(dayDir_FullPath, "%s/%02u~%02u~%02u", projectRootDir, day(), month(), year() % 100);
+    snprintf(dayDir_FullPath, 18, "%s/%02u~%02u~%02u", projectRootDir, day(), month(), year() % 100);
     
     Serial.printf("Checking or creating day directory '%s'\n", dayDir_FullPath);
         
@@ -538,11 +540,10 @@ void setup()
       display.display();
       delay(1000);
   
-      char sessionFile_FullPath[31]; //1 caractère de plus (3 noms de fichiers 8*3 = 24, 2 séparateur 24+2=26, . et extension 26+4 = 30) pour que la chaîne soie NULL-terminated
-      sprintf(sessionFile_FullPath, "%s/%02u-%02u-%02u.txt", dayDir_FullPath, hour(), minute(), second());
+      snprintf(sessionFile_FullPath, 31, "%s/%02u-%02u-%02u.txt", dayDir_FullPath, hour(), minute(), second());
           
       char startTimeMessage[40];
-      sprintf(startTimeMessage, "Starttime#%02u-%02u-%02u %02u:%02u:%02u", year() % 100, month(), day(), hour(), minute(), second());
+      snprintf(startTimeMessage, 40, "Starttime#%02u-%02u-%02u %02u:%02u:%02u", year() % 100, month(), day(), hour(), minute(), second());
   
       if (!createOrOverWriteSessionFile(SD, sessionFile_FullPath, startTimeMessage)) {
         Serial.printf("\nSession file couldn't be created with path is '%s'\n\n", sessionFile_FullPath);
@@ -659,8 +660,8 @@ void displayGPS(int gps_nb_sats, double gps_latitude, double gps_longitude, doub
   Serial.print("   Vitesse : ");
   Serial.print(gps_spd, 2);
 
-  sprintf(time_str, "%02u:%02u:%02u", hour(), minute(), second());
-  sprintf(date_str, "%02u/%02u/%02u", day(), month(), year());
+  snprintf(time_str, 9, "%02u:%02u:%02u", hour(), minute(), second());
+  snprintf(date_str, 9, "%02u/%02u/%02u", day(), month(), year());
   Serial.print("   Board time : ");
   Serial.print(time_str);
   Serial.print("   Board date : ");
@@ -689,19 +690,6 @@ void displayGPS(int gps_nb_sats, double gps_latitude, double gps_longitude, doub
   if(distance_m < SEUIL_DIST) {  
     Serial.println("  Positions identiques !"); 
   }
-  else {
-    if(deniv < 0.0) {
-      deniv_neg += deniv;
-    }
-    else {
-      deniv_pos += deniv;
-    }
-    distance_tot += distance_m;
-      
-    prev_pos_lat = gps_latitude;
-    prev_pos_lng = gps_longitude;
-    prev_pos_alt = gps_altitude;
-  }
     
   Serial.print("            Distance totale (m) : ");
   Serial.print(distance_tot, 2);
@@ -729,6 +717,10 @@ void readGPSAndDisplayData(void * pvParameters) {
   double temp_accel_X = 0.0, temp_accel_Y = 0.0, temp_accel_Z = 0.0, temp_angle_X = 0.0, temp_angle_Y = 0.0, temp_angle_Z = 0.0;
   int temp_gps_satellites = 0;
   double temp_gps_lat = 0.0, temp_gps_lng = 0.0, temp_gps_alt = 0.0, temp_gps_speed = 0.0;
+  bool gps_data_fetched = false;
+
+  /*STORES THE MESSAGE TO APPEND TO THE SESSION FILE*/
+  char messageToAppend[200];
   
   for(;;) {
 
@@ -746,15 +738,48 @@ void readGPSAndDisplayData(void * pvParameters) {
   
       //Relâche le Mutex une fois l'affichage des valeurs effectué
       xSemaphoreGive( xSemaphore_GPS_Data );
+      
+      gps_data_fetched = true;
     }
     else{
       //Impossible d'obtenir le Mutex (logiquement ne devrait pas arriver)
       Serial.println("@@@@@@@@@@@@@@@@@@@\n  Mutex indisponible pour afficher les données GPS\n@@@@@@@@@@@@@@@@@@@");
+
+      gps_data_fetched = false;
     }
 
-    /*DISPLAYING GPS DATA*/
-    displayGPS(temp_gps_satellites, temp_gps_lat, temp_gps_lng, temp_gps_alt, temp_gps_speed);
+    if(gps_data_fetched) {
+      distance_m =
+        TinyGPSPlus::distanceBetween(
+          temp_gps_lat,
+          temp_gps_lng,
+          prev_pos_lat,
+          prev_pos_lng);
+      deniv = prev_pos_alt - temp_gps_alt;
+      
+      //Réduction du bruit sur la position GPS
+      if(distance_m < SEUIL_DIST) {  
+        Serial.println("  Positions identiques !"); 
+      }
+      else {
+        if(deniv < 0.0) {
+          deniv_neg += deniv;
+        }
+        else {
+          deniv_pos += deniv;
+        }
+        distance_tot += distance_m;
+          
+        prev_pos_lat = temp_gps_lat;
+        prev_pos_lng = temp_gps_lng;
+        prev_pos_alt = temp_gps_alt;
+      }
+      /*DISPLAYING GPS DATA*/
+      //TODO : remove
+      displayGPS(temp_gps_satellites, temp_gps_lat, temp_gps_lng, temp_gps_alt, temp_gps_speed);
+    }
 
+    
 
     /*FETCHING GLOBAL ACCEL & GYRO DATA*/
     if( xSemaphoreTake( xSemaphore_AccelGyro_Data, ( TickType_t ) 100 ) == pdTRUE ) {
@@ -777,6 +802,28 @@ void readGPSAndDisplayData(void * pvParameters) {
       Serial.println("°°°°°°°°°°°°°°°°°°°\n  Mutex indisponible pour récupérer les valeurs d'accélération et d'angle\n°°°°°°°°°°°°°°°°°°°");
     }
 
+    //GPS(lat, lon, alt, speed) -> ACC(x,y,z) -> GYR(x,y,z) -> CALC (dist, deniv+, deniv-)
+
+    /*APPENDING RECORDED DATA TO SESSION FILE*/
+    /*                               ~~~~~~~~~~~~~~~~~TIME~~~~~~~~~~~~~~~~~ ---------GPS--------- _____ANGL_____ =====GYRO===== +++++CALC+++++*/
+    snprintf(messageToAppend, 200, "%04u-%02u-%02uT%02u:%02u:%02u.%03u+0000,%.10f,%.10f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f\n", 
+    year(), month(), day(), 
+    hour(), minute(), second(), millisecond(), 
+    temp_gps_lat, temp_gps_lng, temp_gps_alt, temp_gps_speed, 
+    temp_angle_X, temp_angle_Y, temp_angle_Z, 
+    temp_accel_X, temp_accel_Y, temp_accel_Z, 
+    distance_tot, deniv_pos, deniv_neg);
+
+    //Serial.printf("\nData message : '%s'\n\n", messageToAppend);
+    
+    if(appendToSessionFile(SD, sessionFile_FullPath, messageToAppend)) {
+      Serial.printf("Successfully appended to session file : '%s'\n", messageToAppend);
+    }
+    else {
+      Serial.printf("Append to session file failed for msg : '%s'\n", messageToAppend);
+    }
+    
+    
     /*DISPLAYING ACCEL & GYRO DATA*/
     String angle_str = "Angle   X:" + String(temp_angle_X,2) + " Y:" + String(temp_angle_Y,2) + " Z:" + String(temp_angle_Z,2);
     String accel_str = "Accel   X:" + String(temp_accel_X,2) + " Y:" + String(temp_accel_Y,2) + " Z:" + String(temp_accel_Z,2);

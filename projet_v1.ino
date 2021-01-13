@@ -110,6 +110,9 @@ char date_str[16];
 
 //Dossier racine contenant les dossiers journaliers, contenant eux-mêmes les fichiers sessions
 const char * projectRootDir = "/BanDuke";
+
+//Pins changeables par l'utilisateur
+int CSpin = 4;
 /*##################################################################################*/
 
 
@@ -131,8 +134,181 @@ SemaphoreHandle_t xSemaphore_I2C_Communication = NULL;
 
 
 
+
+
+
+
+
+/*##################################################################################*/
+/*#######                     Fonctions pour la carte SD                     #######*/
+/*##################################################################################*/
+/*Checks if the root directory of the project exixts, if not, creates it. 
+  Returns TRUE if everything went smoothly, FALSE otherwise*/
+bool checkOrCreateRootDir(fs::FS &fs, const char * rootPath) {
+  Serial.printf("Checking or creating project root directory '%s'\n", rootPath);
+  File root = fs.open(rootPath);
+  
+  if(!root){
+    Serial.printf("Failed to open directory '%s'\n", rootPath);
+    Serial.printf("Creating Dir '%s'\n", rootPath);
+    if(fs.mkdir(rootPath)){
+      Serial.println("Dir created");
+      return true;
+    } 
+    else {
+      Serial.println("mkdir failed");
+      return false;
+    }
+  }
+  
+  else {
+    if(!root.isDirectory()){
+      Serial.println("Not a directory");
+      Serial.printf("Deleting file '%s'\n", rootPath);
+      if(fs.remove(rootPath)){
+        Serial.println("File deleted");
+        
+        Serial.printf("Creating Dir '%s'\n", rootPath);
+        if(fs.mkdir(rootPath)){
+          Serial.println("Dir created");
+          return true;
+        } 
+        else {
+          Serial.println("mkdir failed");
+          return false;
+        }
+      } 
+      else {
+        Serial.println("Delete failed");
+        return false;
+      }
+    }
+    else {
+      Serial.printf("Directory '%s' already exists\n", rootPath);
+      return true;
+    }
+  }
+  /*END OF CHECK OR CREATE ROOT DIRECTORY TO STORE SESSIONS DATA*/   
+}
+
+
+
+/*Checks if the daily directory for session files exixts, if not, creates it. 
+  Returns TRUE if everything went smoothly, FALSE otherwise*/
+bool checkOrCreateDayDir(fs::FS &fs, const char * dayDir_FullPath) {
+  File dayDir = fs.open(dayDir_FullPath);
+  if(!dayDir){
+    Serial.printf("Failed to open directory '%s'\n", dayDir_FullPath);
+    Serial.printf("Creating Dir '%s'\n", dayDir_FullPath);
+    if(fs.mkdir(dayDir_FullPath)){
+      Serial.println("Dir created");
+      return true;
+    } 
+    else {
+      Serial.println("mkdir failed");
+      return false;
+    }
+  }
+  else {
+    if(!dayDir.isDirectory()){
+      Serial.println("Not a directory");
+      Serial.printf("Deleting file '%s'\n", dayDir_FullPath);
+      if(fs.remove(dayDir_FullPath)){
+        Serial.println("File deleted");
+        
+        Serial.printf("Creating Dir '%s'\n", dayDir_FullPath);
+        if(fs.mkdir(dayDir_FullPath)){
+          Serial.println("Dir created");
+          return true;
+        } 
+        else {
+          Serial.println("mkdir failed");
+          return false;
+        }
+      } 
+      else {
+        Serial.println("Delete failed");
+        return false;
+      }
+    }
+    else {
+      Serial.printf("Directory '%s' already exists\n", dayDir_FullPath);
+      return true;
+    }
+  }
+  
+  /*END OF CHECK OR CREATE ROOT DIRECTORY TO STORE SESSIONS DATA*/   
+}
+
+
+
+/*Creates or overwrite the txt file for the current session. 
+  Returns TRUE if everything went smoothly, FALSE otherwise*/
+bool createOrOverWriteSessionFile(fs::FS &fs, const char * sessionFile_FullPath, char * startTimeMessage) {
+  Serial.printf("Writing file: %s\n", sessionFile_FullPath);
+
+  File sessionFile = fs.open(sessionFile_FullPath, FILE_WRITE);
+  if(!sessionFile){
+    Serial.printf("Failed to open file '%s' for writing\n", sessionFile_FullPath);
+    sessionFile.close();
+    return false;
+  }
+  if(sessionFile.print(startTimeMessage)){
+    Serial.printf("File written with start message '%s'\n", startTimeMessage);
+    sessionFile.close();
+    return true;
+  } 
+  else {
+    Serial.printf("Write failed for start message '%s'\n", startTimeMessage);
+    sessionFile.close();
+    return false;
+  }
+  /*END OF CREATE OR OVERWRITE SESSION FILE*/
+}
+
+
+
+/*Appends latest data to the txt file of the current session. 
+  Returns TRUE if everything went smoothly, FALSE otherwise*/
+bool appendToSessionFile(fs::FS &fs, const char * sessionFile_FullPath, char * messageToAppend) {
+  Serial.printf("Appending to file: %s\n", sessionFile_FullPath);
+
+  File sessionFile = fs.open(sessionFile_FullPath, FILE_APPEND);
+  if(!sessionFile){
+    Serial.printf("Failed to open file '%s' for appending", sessionFile_FullPath);
+    sessionFile.close();
+    return false;
+  }
+  if(sessionFile.print(messageToAppend)){
+    Serial.printf("Message '%s' appended", messageToAppend);
+    sessionFile.close();
+    return true;
+  } 
+  else {
+    Serial.printf("Append of '%s' failed", messageToAppend);
+    sessionFile.close();
+    return false;
+  }
+  /*END OF APPEND TO SESSION FILE*/
+}
+/*##################################################################################*/
+
+
+
+
+
+
+
+
+
+
 void setup()
 {
+  //Ouverture des liaisons séries
+  Serial.begin(115200);
+  while (!Serial)
+    vTaskDelay(10); 
+  ss.begin(9600);
 
   //Initialisation de l'écran
   display.init();
@@ -153,19 +329,12 @@ void setup()
   //Création du Mutex pour les données GPS
   xSemaphore_GPS_Data = xSemaphoreCreateMutex();
 
-  //Ouverture des liaisons séries
-  Serial.begin(115200);
-  while (!Serial)
-    vTaskDelay(10); 
-
-  ss.begin(9600);
-
   vTaskDelay(1000);
 
   Serial.println("############################################################################################################\n");
   Serial.println("Starting app, please wait...\n");
-
-  Serial.println("*************************************");
+  
+  Serial.println("****************************************");
   Serial.println("Launching GPS...");
 
   
@@ -197,36 +366,36 @@ void setup()
   //while( (abs(prev_pos_lat) <= 0.001) && (abs(prev_pos_lng) <= 0.001) && (abs(prev_pos_alt) <= 0.1) ) {
   while(!gps.location.isValid() || !gps.date.isValid() || !gps.time.isValid()) {
     while (ss.available())
-      {
-        if(gps.encode(ss.read())) {
-          Serial.println("   GPS still inaccurate : ");
-          Serial.print("   Location is valid : ");
-          Serial.print(gps.location.isValid());
-          Serial.print("   Date is valid : ");
-          Serial.print(gps.date.isValid());
-          Serial.print("   Time is valid : ");
-          Serial.print(gps.time.isValid());
-          Serial.print("   Sentences with fix : ");
-          Serial.print(gps.sentencesWithFix());
-          Serial.print("   Satellites : ");
-          Serial.print(gps.satellites.value());
-          Serial.print("   Latitude : ");
-          Serial.print(gps.location.lat(), 10);
-          Serial.print("   Longitude : ");
-          Serial.print(gps.location.lng(), 10);
-          Serial.print("   Altitude : ");
-          Serial.print(gps.altitude.meters(), 2);
-          Serial.print("   Heure : ");
-          Serial.print(gps_time_str);
-          Serial.print("   Date : ");
-          Serial.println(gps_date_str);
-          prev_pos_lat = gps.location.lat();
-          prev_pos_lng = gps.location.lng();
-          prev_pos_alt = gps.altitude.meters();
-          sprintf(gps_time_str, "%02u:%02u:%02u", gps.time.hour(), gps.time.minute(), gps.time.second());
-          sprintf(gps_date_str, "%02u/%02u/%02u", gps.date.day(), gps.date.month(), gps.date.year());
-        }
+    {
+      if(gps.encode(ss.read())) {
+        Serial.println("   GPS still inaccurate : ");
+        Serial.print("   Location is valid : ");
+        Serial.print(gps.location.isValid());
+        Serial.print("   Date is valid : ");
+        Serial.print(gps.date.isValid());
+        Serial.print("   Time is valid : ");
+        Serial.print(gps.time.isValid());
+        Serial.print("   Sentences with fix : ");
+        Serial.print(gps.sentencesWithFix());
+        Serial.print("   Satellites : ");
+        Serial.print(gps.satellites.value());
+        Serial.print("   Latitude : ");
+        Serial.print(gps.location.lat(), 10);
+        Serial.print("   Longitude : ");
+        Serial.print(gps.location.lng(), 10);
+        Serial.print("   Altitude : ");
+        Serial.print(gps.altitude.meters(), 2);
+        Serial.print("   Heure : ");
+        Serial.print(gps_time_str);
+        Serial.print("   Date : ");
+        Serial.println(gps_date_str);
+        prev_pos_lat = gps.location.lat();
+        prev_pos_lng = gps.location.lng();
+        prev_pos_alt = gps.altitude.meters();
+        sprintf(gps_time_str, "%02u:%02u:%02u", gps.time.hour(), gps.time.minute(), gps.time.second());
+        sprintf(gps_date_str, "%02u/%02u/%02u", gps.date.day(), gps.date.month(), gps.date.year());
       }
+    }
   }
 
 
@@ -257,11 +426,11 @@ void setup()
   gps_lng = gps.location.lng(), 
   gps_alt = gps.altitude.meters(), 
   gps_speed = gps.speed.kmph();
-  Serial.println("*************************************\n");
+  Serial.println("****************************************\n");
 
 
 
-  Serial.println("+++++++++++++++++++++++++++++++++++++");
+  Serial.println("++++++++++++++++++++++++++++++++++++++++");
   Serial.println("Setting board time from GPS data");
   
   display.clear();
@@ -282,7 +451,141 @@ void setup()
   Serial.println(time_str);
   Serial.print("Board date : ");
   Serial.println(date_str);
-  Serial.println("+++++++++++++++++++++++++++++++++++++\n");
+  Serial.println("++++++++++++++++++++++++++++++++++++++++\n");
+
+
+
+  Serial.println("<><><><><><><><><><><><><><><><><><><><>");
+  Serial.println("Initializing SD card and storage...");
+  
+  display.clear();
+  display.drawStringMaxWidth(0, 0, 128, "Checking SD card...");
+  display.display();
+  delay(100);
+
+  if(!SD.begin(CSpin)){
+    Serial.println("Card mount failed");
+
+    display.clear();
+    display.drawStringMaxWidth(0, 0, 128, "Card mount failed");
+    display.display();
+    delay(5000);
+  
+    return;
+  }
+
+  if(SD.cardType() == CARD_NONE){
+    Serial.println("No SD card attached");
+
+    display.clear();
+    display.drawStringMaxWidth(0, 0, 128, "No SD card attached");
+    display.display();
+    delay(5000);
+  
+    return;
+  }
+
+  int totalMegaBytes = SD.totalBytes() / (1024 * 1024);
+  int usedMegaBytes = SD.usedBytes() / (1024 * 1024);
+  int freeMegaBytes = totalMegaBytes - usedMegaBytes;
+  double freeSpace = 100.0 * freeMegaBytes / totalMegaBytes;
+  
+  if (freeSpace < 10.0) {
+    Serial.printf("WARNING ! Only %lluMB (%d%) of free space remaining (%lluMB used of a total of %lluMB space)", freeMegaBytes, usedMegaBytes, totalMegaBytes);
+  }
+  else {
+    Serial.printf("%lluMB (%d%) of free space remaining (%lluMB used of a total of %lluMB space)", freeMegaBytes, usedMegaBytes, totalMegaBytes);
+  }
+
+  if(!checkOrCreateRootDir(SD, projectRootDir)) {
+    Serial.printf("\nProject root directory couldn't be created with path '%s'\n\n", projectRootDir);
+
+    display.clear();
+    display.drawStringMaxWidth(0, 0, 128, "Root dir unavailable");
+    display.display();
+    delay(1000);
+  
+    return;
+  }
+  else {
+    Serial.printf("\nProject root directory exists, its path is '%s'\n\n", projectRootDir);
+
+    display.clear();
+    display.drawStringMaxWidth(0, 0, 128, "Root dir available");
+    display.display();
+    delay(1000);
+  
+    char dayDir_FullPath[18]; //1 caractère de plus pour que la chaîne soie NULL-terminated
+    sprintf(dayDir_FullPath, "%s/%02u~%02u~%02u", projectRootDir, day(), month(), year() % 100);
+    
+    Serial.printf("Checking or creating day directory '%s'\n", dayDir_FullPath);
+        
+    if(!checkOrCreateDayDir(SD, dayDir_FullPath)) {
+      Serial.printf("\nDay directory couldn't be created with path '%s'\n\n", dayDir_FullPath);
+
+      display.clear();
+      display.drawStringMaxWidth(0, 0, 128, "Day dir unavailable");
+      display.display();
+      delay(1000);
+  
+      return;
+    }
+    else {
+      Serial.printf("\nDay directory exists, its path is '%s'\n\n", dayDir_FullPath);
+
+      display.clear();
+      display.drawStringMaxWidth(0, 0, 128, "Day dir available");
+      display.display();
+      delay(1000);
+  
+      char sessionFile_FullPath[31]; //1 caractère de plus (3 noms de fichiers 8*3 = 24, 2 séparateur 24+2=26, . et extension 26+4 = 30) pour que la chaîne soie NULL-terminated
+      sprintf(sessionFile_FullPath, "%s/%02u-%02u-%02u.txt", dayDir_FullPath, hour(), minute(), second());
+          
+      char startTimeMessage[40];
+      sprintf(startTimeMessage, "Starttime#%02u-%02u-%02u %02u:%02u:%02u", year() % 100, month(), day(), hour(), minute(), second());
+  
+      if (!createOrOverWriteSessionFile(SD, sessionFile_FullPath, startTimeMessage)) {
+        Serial.printf("\nSession file couldn't be created with path is '%s'\n\n", sessionFile_FullPath);
+
+        display.clear();
+        display.drawStringMaxWidth(0, 0, 128, "Session file unavailable");
+        display.display();
+        delay(1000);
+  
+        return;
+      }
+      else {
+        Serial.printf("\nSession file exists, its path is '%s', and now has the start message '%s'\n\n", sessionFile_FullPath, startTimeMessage);
+
+        display.clear();
+        display.drawStringMaxWidth(0, 0, 128, "Session file available");
+        display.display();
+        delay(1000);
+  
+        if (!appendToSessionFile(SD, sessionFile_FullPath, "\n")) {
+          Serial.printf("\nSession file couldn't be appended with CRLF\n\n");
+
+          display.clear();
+          display.drawStringMaxWidth(0, 0, 128, "Session file not appended");
+          display.display();
+          delay(1000);
+  
+          return;
+        }
+        else {
+          Serial.printf("\nSession file succesfully appended with CRLF\n\n");
+
+          display.clear();
+          display.drawStringMaxWidth(0, 0, 128, "Session file appended");
+          display.display();
+          delay(1000);
+        }
+      }
+    }
+  }
+
+  Serial.println("SD card and storage succesfully initialized !");
+  Serial.println("<><><><><><><><><><><><><><><><><><><><>\n");
 
   
   
@@ -294,7 +597,7 @@ void setup()
   //Initialisation et calibration de l'accéléromètre/gyroscope
   mpu.Initialize();
   
-  Serial.println("=====================================");
+  Serial.println("========================================");
   Serial.println("Starting gyroscope/accelerometer calibration...");
   mpu.Calibrate();
   Serial.println("Calibration complete!");
@@ -306,7 +609,7 @@ void setup()
   Serial.print("  GyroZ Offset = ");
   Serial.println(mpu.GetGyroZOffset());
   Serial.println("Accel Offsets: None");
-  Serial.println("=====================================\n");
+  Serial.println("========================================\n");
 
 
   display.clear();

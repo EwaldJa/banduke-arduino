@@ -100,6 +100,23 @@ char date_str[16];
 
 
 /*##################################################################################*/
+/*#######              Librairies et variables pour la carte SD              #######*/
+/*##################################################################################*/
+//Librairie pour utiliser la carte SD
+#include "FS.h"
+#include "SD.h"
+#include "SPI.h"
+
+
+//Dossier racine contenant les dossiers journaliers, contenant eux-mêmes les fichiers sessions
+const char * projectRootDir = "/BanDuke";
+/*##################################################################################*/
+
+
+  
+
+
+/*##################################################################################*/
 /*#######                  Librairies et variables globales                  #######*/
 /*##################################################################################*/
 //Librairie pour manipuler les nombres
@@ -173,43 +190,43 @@ void setup()
   prev_pos_alt = gps.altitude.meters();
   
   display.clear();
-  display.drawStringMaxWidth(0, 0, 128, "Getting accurate loc");
+  display.drawStringMaxWidth(0, 0, 128, "Getting accurate pos");
   display.display();
   delay(100);
 
   //while( (abs(prev_pos_lat) <= 0.001) && (abs(prev_pos_lng) <= 0.001) && (abs(prev_pos_alt) <= 0.1) ) {
   while(!gps.location.isValid() || !gps.date.isValid() || !gps.time.isValid()) {
-    Serial.println("   GPS still inaccurate : ");
-    Serial.print("   Location is valid : ");
-    Serial.print(gps.location.isValid());
-    Serial.print("   Date is valid : ");
-    Serial.print(gps.date.isValid());
-    Serial.print("   Time is valid : ");
-    Serial.print(gps.time.isValid());
-    Serial.print("   Satellites : ");
-    Serial.print(gps.satellites.value());
-    Serial.print("   Latitude : ");
-    Serial.print(gps.location.lat(), 10);
-    Serial.print("   Longitude : ");
-    Serial.print(gps.location.lng(), 10);
-    Serial.print("   Altitude : ");
-    Serial.print(gps.altitude.meters(), 2);
-    Serial.print("   Heure : ");
-    Serial.print(gps_time_str);
-    Serial.print("   Date : ");
-    Serial.println(gps_date_str);
-    delay(1000);
     while (ss.available())
       {
-        Serial.println("SS available");
-        char c = ss.read();
-        gps.encode(c);
+        if(gps.encode(ss.read())) {
+          Serial.println("   GPS still inaccurate : ");
+          Serial.print("   Location is valid : ");
+          Serial.print(gps.location.isValid());
+          Serial.print("   Date is valid : ");
+          Serial.print(gps.date.isValid());
+          Serial.print("   Time is valid : ");
+          Serial.print(gps.time.isValid());
+          Serial.print("   Sentences with fix : ");
+          Serial.print(gps.sentencesWithFix());
+          Serial.print("   Satellites : ");
+          Serial.print(gps.satellites.value());
+          Serial.print("   Latitude : ");
+          Serial.print(gps.location.lat(), 10);
+          Serial.print("   Longitude : ");
+          Serial.print(gps.location.lng(), 10);
+          Serial.print("   Altitude : ");
+          Serial.print(gps.altitude.meters(), 2);
+          Serial.print("   Heure : ");
+          Serial.print(gps_time_str);
+          Serial.print("   Date : ");
+          Serial.println(gps_date_str);
+          prev_pos_lat = gps.location.lat();
+          prev_pos_lng = gps.location.lng();
+          prev_pos_alt = gps.altitude.meters();
+          sprintf(gps_time_str, "%02u:%02u:%02u", gps.time.hour(), gps.time.minute(), gps.time.second());
+          sprintf(gps_date_str, "%02u/%02u/%02u", gps.date.day(), gps.date.month(), gps.date.year());
+        }
       }
-    prev_pos_lat = gps.location.lat();
-    prev_pos_lng = gps.location.lng();
-    prev_pos_alt = gps.altitude.meters();
-    sprintf(gps_time_str, "%02u:%02u:%02u", gps.time.hour(), gps.time.minute(), gps.time.second());
-    sprintf(gps_date_str, "%02u/%02u/%02u", gps.date.day(), gps.date.month(), gps.date.year());
   }
 
 

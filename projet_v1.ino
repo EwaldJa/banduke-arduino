@@ -141,6 +141,13 @@ int CSpin = 4;
 #include "Network.h"
 #include "Sys_Variables.h"
 #include "CSS.h"  
+
+//Variable définissant le fichier portant les caractéristiques du réseau WiFi auquel se connecter
+const char * pathToWifiDetails = "/BanDuke/Wifi/network.txt";
+
+//Instanciation
+WiFiMulti wifiMulti;
+ESP32WebServer server(80);
 /*##################################################################################*/
 
 
@@ -330,15 +337,212 @@ bool appendToSessionFile(fs::FS &fs, const char * sessionFile_FullPath, char * m
 
 
 
-void setup()
-{
-  //Ouverture des liaisons séries
-  Serial.begin(115200);
-  while (!Serial)
-    vTaskDelay(10); 
-
-  setupSessionRecording();
+/*##################################################################################*/
+/*#######                     Fonctions pour le WebServer                    #######*/
+/*##################################################################################*/
+void HomePage(){
+  SendHTML_Header();
+  append_page_footer();
+  SendHTML_Content();
+  SendHTML_Stop(); // Stop is needed because no content length was sent
 }
+
+void File_Download(){ // This gets called twice, the first pass selects the input, the second pass then processes the command line arguments
+  Serial.println(server.args());
+  Serial.println(server.arg(0));
+  if (server.args() > 0 ) { // Arguments were received
+    if (server.hasArg("download")) SD_file_download(server.arg(0));
+  }
+  else SelectInput("Enter filename to download","download","download");
+}
+
+void SD_file_download(String filename){
+  if (SD_present) { 
+    File download = SD.open("/"+filename);
+    if (download) {
+      server.sendHeader("Content-Type", "text/text");
+      server.sendHeader("Content-Disposition", "attachment; filename="+filename);
+      server.sendHeader("Connection", "close");
+      server.streamFile(download, "application/octet-stream");
+      download.close();
+    } else ReportFileNotPresent("download"); 
+  } else ReportSDNotPresent();
+}
+
+void SD_dir(){
+  if (SD_present) { 
+    File root = SD.open("/");
+    if (root) {
+      root.rewindDirectory();
+      SendHTML_Header();
+      webpage += F("<a href='/'><button>Home</button></a>");
+      webpage += F("<a href='/download'><button>Download</button></a>");
+      webpage += F("<a href='/delete'><button>Delete</button></a>");
+      webpage += F("<a href='/dir'><button>Directory</button></a>");
+      webpage += F("<br><br><table align='center'>");
+      webpage += F("<tr><th>Name/Type</th><th style='width:20%'>Type File/Dir</th><th>File Size</th></tr>");
+      printDirectory("/");
+      webpage += F("</table>");
+      SendHTML_Content();
+      root.close();
+    }
+    else 
+    {
+      SendHTML_Header();
+      webpage += F("<h3>No Files Found</h3>");
+    }
+    append_page_footer();
+    SendHTML_Content();
+    SendHTML_Stop();   // Stop is needed because no content length was sent
+  } else ReportSDNotPresent();
+}
+
+void printDirectory(const char * dirname){
+  File root = SD.open(dirname);
+  if(!root){
+    return;
+  }
+  if(!root.isDirectory()){
+    return;
+  }
+  File file = root.openNextFile();
+  while(file){
+    if (webpage.length() > 1000) {
+      SendHTML_Content();
+    }
+    String file_name = String(file.name());
+    bool toSkip = file_name.startsWith("/System Volume Information");
+    if(file.isDirectory()){
+      if(!toSkip) {
+        Serial.println(String(file.isDirectory()?"Dir ":"File ")+file_name);
+        webpage += "<tr><td>"+file_name+"</td><td>Dir</td></tr>";
+      }
+      printDirectory(file.name());
+    }
+    else
+    {
+      if(!toSkip) {
+        //Serial.print(String(file.name())+"\t");
+        webpage += "<tr><td>"+file_name+"</td>";
+        Serial.print(String(file.isDirectory()?"Dir ":"File ")+file_name+"\t");
+        webpage += "<td>File</td>";
+        int bytes = file.size();
+        String fsize = "";
+        if (bytes < 1024)                     fsize = String(bytes)+" B";
+        else if(bytes < (1024 * 1024))        fsize = String(bytes/1024.0,3)+" KB";
+        else if(bytes < (1024 * 1024 * 1024)) fsize = String(bytes/1024.0/1024.0,3)+" MB";
+        else                                  fsize = String(bytes/1024.0/1024.0/1024.0,3)+" GB";
+        webpage += "<td>"+fsize+"</td><td class='action_td'><a href='/download?download="+file_name+"'><i class='gg-software-download' style='margin-left:7px'></i></a></td><td class='action_td'><i class='gg-youtube'></i></td><td class='action_td'><a href='/delete?delete="+file_name+"'><i class='gg-trash'></i></a></td></tr>";
+        Serial.println(String(fsize));
+      }
+    }
+    file = root.openNextFile();
+  }
+  file.close();
+} 
+
+void File_Delete(){
+  if (server.args() > 0 ) { // Arguments were received
+    if (server.hasArg("delete")) SD_file_delete(server.arg(0));
+  }
+  else SelectInput("Select a File to Delete","delete","delete");
+}
+
+void SD_file_delete(String filename) { // Delete the file 
+  if (SD_present) { 
+    SendHTML_Header();
+    File dataFile = SD.open("/"+filename, FILE_READ); // Now read data from SD Card 
+    Serial.print("Deleting file: "); Serial.println(filename);
+    if (dataFile)
+    {
+      if (SD.remove("/"+filename)) {
+        Serial.println(F("File deleted successfully"));
+        webpage += "<h3>File '"+filename+"' has been erased</h3>"; 
+        webpage += F("<a href='/'>[Home]</a><br><br>");
+      }
+      else
+      { 
+        webpage += F("<h3>File was not deleted - error</h3>");
+        webpage += F("<a href='/'>[Home]</a><br><br>");
+      }
+    } else ReportFileNotPresent("delete");
+    append_page_footer(); 
+    SendHTML_Content();
+    SendHTML_Stop();
+  } else ReportSDNotPresent();
+} 
+
+void SendHTML_Header(){
+  server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate"); 
+  server.sendHeader("Pragma", "no-cache"); 
+  server.sendHeader("Expires", "-1"); 
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN); 
+  server.send(200, "text/html", ""); // Empty content inhibits Content-length header so we have to close the socket ourselves. 
+  append_page_header();
+  server.sendContent(webpage);
+  webpage = "";
+}
+
+void SendHTML_Content(){
+  server.sendContent(webpage);
+  webpage = "";
+}
+
+void SendHTML_Stop(){
+  server.sendContent("");
+  server.client().stop(); // Stop is needed because no content length was sent
+}
+
+void SelectInput(String heading1, String command, String arg_calling_name){
+  SendHTML_Header();
+  webpage += F("<h3>"); webpage += heading1 + "</h3>"; 
+  webpage += F("<form action='/"); webpage += command + "' method='post'>"; // Must match the calling argument e.g. '/chart' calls '/chart' after selection but with arguments!
+  webpage += F("<input type='text' name='"); webpage += arg_calling_name; webpage += F("' value=''><br>");
+  webpage += F("<type='submit' name='"); webpage += arg_calling_name; webpage += F("' value=''><br><a href="); webpage += command; webpage += F("><button>Valider</button></a><br><br><br></type='submit'></form>");
+  append_page_footer();
+  SendHTML_Content();
+  SendHTML_Stop();
+}
+
+void ReportSDNotPresent(){
+  SendHTML_Header();
+  webpage += F("<h3>No SD Card present</h3>"); 
+  webpage += F("<a href='/'>[Back]</a><br><br>");
+  append_page_footer();
+  SendHTML_Content();
+  SendHTML_Stop();
+}
+
+void ReportFileNotPresent(String target){
+  SendHTML_Header();
+  webpage += F("<h3>File does not exist</h3>"); 
+  webpage += F("<a href='/"); webpage += target + "'>[Back]</a><br><br>";
+  append_page_footer();
+  SendHTML_Content();
+  SendHTML_Stop();
+}
+
+String file_size(int bytes){
+  String fsize = "";
+  if (bytes < 1024)                 fsize = String(bytes)+" B";
+  else if(bytes < (1024*1024))      fsize = String(bytes/1024.0,3)+" KB";
+  else if(bytes < (1024*1024*1024)) fsize = String(bytes/1024.0/1024.0,3)+" MB";
+  else                              fsize = String(bytes/1024.0/1024.0/1024.0,3)+" GB";
+  return fsize;
+}
+/*##################################################################################*/
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -669,7 +873,7 @@ void setupSessionRecording() {
   xTaskCreatePinnedToCore(
                     grabDataAndSaveSession,   // Task function. 
                     "grabDataAndSaveSession",     // name of task. 
-                    65536,       // Stack size of task 
+                    4000,       // Stack size of task 
                     NULL,        // parameter of the task 
                     5,           // priority of the task 
                     NULL,      // Task handle to keep track of created task 
@@ -679,11 +883,11 @@ void setupSessionRecording() {
   xTaskCreatePinnedToCore(
                     readSensorsAndDisplayI2C,   // Task function. 
                     "readSensorsAndDisplayI2C",     // name of task. 
-                    65536,       // Stack size of task 
+                    4000,       // Stack size of task 
                     NULL,        // parameter of the task 
                     5,           // priority of the task 
                     NULL,      // Task handle to keep track of created task 
-                    1);          // pin task to core 0
+                    1);          // pin task to core 1
     
   
   Serial.println("Application launched ! \n");
@@ -894,6 +1098,7 @@ void grabDataAndSaveSession(void * pvParameters) {
 
 
 void readSensorsAndDisplayI2C(void * pvParameters){  
+  vTaskDelay(100);
   for(;;){
     /*READING AND SAVING GPS DATA*/
     while (ss.available() > 0) {
@@ -998,4 +1203,159 @@ void readSensorsAndDisplayI2C(void * pvParameters){
   }
 }
 
-void loop(){}
+
+
+
+
+
+
+
+
+
+void setupWebServer() {
+  Serial.print(F("Initializing SD card...\n")); 
+  if (!SD.begin(SD_CS_pin)) { // see if the card is present and can be initialised. Wemos SD-Card CS uses D8 
+    Serial.println(F("Card failed or not present, no SD Card data logging possible..."));
+    SD_present = false; 
+  } 
+  else
+  {
+    Serial.println(F("Card initialised... file access enabled..."));
+    SD_present = true; 
+  }
+  
+  if (!WiFi.config(local_IP, gateway, subnet, dns)) { //WiFi.config(ip, gateway, subnet, dns1, dns2);
+    Serial.println("WiFi STATION Failed to configure Correctly"); 
+  } 
+  
+  if (SD_present) {
+    char readFromFile[389], ssid[129], password[257];
+    int readFromFile_Index = 0;
+    bool parseDetails = true;
+
+    char readByte;
+
+    File wifiDetails = SD.open(pathToWifiDetails);
+    if(!wifiDetails){
+      Serial.printf("Failed to open file '%s' for reading, falling back to ssid and password from Network.h\n", pathToWifiDetails);
+      wifiMulti.addAP(ssid_1, password_1);
+    }
+    else {
+      Serial.printf("Reading from file '%s'\n", pathToWifiDetails);
+      while(wifiDetails.available()){
+        readByte = wifiDetails.read();
+        if(readByte != EOF && readByte != '\n' && readByte != '\r' && readByte != '\t') {
+          readFromFile[readFromFile_Index] = readByte;
+        }
+        else {
+          break;
+        }
+        readFromFile_Index++;
+        if(readFromFile_Index == 388) {
+          Serial.println("Max size reached for readFromFile, falling back to ssid and password from Network.h");
+          wifiMulti.addAP(ssid_1, password_1);
+          parseDetails = false;
+          break;
+        }
+      }
+      wifiDetails.close();
+  
+      Serial.printf("Raw value read :  '%s'\n", readFromFile);
+
+      if (parseDetails) {
+        char* identifier = strtok(readFromFile, " :: ");
+        strncpy(ssid, identifier, 128);
+        identifier = strtok(NULL, " :: ");
+        strncpy(password, identifier, 256);
+    
+        Serial.printf("WiFi details fetched from SD :     SSID : '%s'     PASSWORD: '%s'\n", ssid, password);
+        
+        wifiMulti.addAP(ssid, password);
+      } 
+    }
+
+  }
+  else {
+    wifiMulti.addAP(ssid_1, password_1); 
+  } 
+  
+  Serial.println("Connecting ...");
+  while (wifiMulti.run() != WL_CONNECTED) { 
+    delay(100); Serial.print('.');
+  }
+  Serial.println("\nConnected to "+WiFi.SSID()+" Use Domain name : "+servername+".local or IP address: "+WiFi.localIP().toString()); 
+  if (!MDNS.begin(servername)) {
+    Serial.println(F("Error setting up MDNS responder!")); 
+    ESP.restart(); 
+  }
+  
+  server.on("/",         HomePage);
+  server.on("/download", File_Download);
+  server.on("/delete",   File_Delete);
+  server.on("/dir",      SD_dir);
+  
+  server.begin();
+  Serial.println("HTTP server started");
+
+  //Création de la routine de lecture GPS, accéléromètre et gyroscope, et affichage des données sur le LCD i2C
+  xTaskCreatePinnedToCore(
+                    loopWebServer,   // Task function. 
+                    "loopWebServer",     // name of task. 
+                    4000,       // Stack size of task 
+                    NULL,        // parameter of the task 
+                    5,           // priority of the task 
+                    NULL,      // Task handle to keep track of created task 
+                    1);          // pin task to core 1
+}
+
+
+
+
+
+
+void loopWebServer(void * pvParameters){
+  vTaskDelay(100);
+  for(;;){
+    server.handleClient();
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void setup()
+{
+  //Ouverture des liaisons séries
+  Serial.begin(115200);
+  while (!Serial)
+    vTaskDelay(10); 
+
+  Serial.println();
+  
+  bool launchSession = false;
+
+  if(launchSession){
+    setupSessionRecording();
+  }
+  else {
+    setupWebServer();
+  }
+}
+
+
+
+void loop(){
+  Serial.println("Will kill loop task...");
+  vTaskDelete(NULL);
+  Serial.println("Loop task is more resilient than Chuck Norris");
+}

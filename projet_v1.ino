@@ -44,7 +44,9 @@ SoftwareSerial ss(rxPin, txPin);
 /*##################################################################################*/
 //Import des librairies
 #include <Wire.h>               
-#include "SSD1306Wire.h"        
+#include "SSD1306Wire.h"
+
+//Import des fichiers utiles
 #include "fonts.h"
 
 //Instanciation
@@ -115,6 +117,30 @@ char sessionFile_FullPath[31]; //1 caractère de plus que le chemin complet (3 n
       
 //Pins changeables par l'utilisateur
 int CSpin = 4;
+/*##################################################################################*/
+
+
+
+
+
+/*##################################################################################*/
+/*#######             Librairies et variables pour le WebServer              #######*/
+/*##################################################################################*/
+//Import des librairies
+#include <WiFi.h>
+#include <WiFiMulti.h> 
+#include <ESP32WebServer.h> 
+#include <ESPmDNS.h>
+/*Librairies déjà incluses pour la carte SD
+#include "FS.h"
+#include "SD.h" 
+#include "SPI.h"
+*/
+
+//Import des fichiers utiles
+#include "Network.h"
+#include "Sys_Variables.h"
+#include "CSS.h"  
 /*##################################################################################*/
 
 
@@ -322,6 +348,7 @@ void setup()
 
 
 void setupSessionRecording() {
+  
   ss.begin(9600);
   Serial.println();
 

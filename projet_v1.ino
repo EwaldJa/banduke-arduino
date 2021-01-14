@@ -160,10 +160,18 @@ ESP32WebServer server(80);
 //Librairie pour manipuler les nombres
 #include <math.h>
 
+//Pins utilisés par les boutons
+int btnChoicePin = 14; //D2
+int btnLaunchPin = 15; //D4
+
+//Booléens pour les boutons
+bool choiceSession = false;
+bool launchProgram = false;
 
 //Semaphore pour la communication I2C qui est non thread-safe
 SemaphoreHandle_t xSemaphore_I2C_Communication = NULL;
 /*##################################################################################*/
+
 
 
 
@@ -432,7 +440,7 @@ void printDirectory(const char * dirname){
         else if(bytes < (1024 * 1024))        fsize = String(bytes/1024.0,3)+" KB";
         else if(bytes < (1024 * 1024 * 1024)) fsize = String(bytes/1024.0/1024.0,3)+" MB";
         else                                  fsize = String(bytes/1024.0/1024.0/1024.0,3)+" GB";
-        webpage += "<td>"+fsize+"</td><td class='action_td'><a href='/download?download="+file_name+"'><i class='gg-software-download' style='margin-left:7px'></i></a></td><td class='action_td'><i class='gg-youtube'></i></td><td class='action_td'><a href='/delete?delete="+file_name+"'><i class='gg-trash'></i></a></td></tr>";
+        webpage += "<td>"+fsize+"</td><td class='action_td'><a href='/download?download="+file_name+"'><i class='gg-software-download' style='margin-left:7px'></i></a></td><td class='action_td'><a href='/delete?delete="+file_name+"'><i class='gg-trash'></i></a></td></tr>";
         Serial.println(String(fsize));
       }
     }
@@ -555,16 +563,6 @@ void setupSessionRecording() {
   
   ss.begin(9600);
   Serial.println();
-
-  //Initialisation de l'écran
-  display.init();
-  display.flipScreenVertically();
-  display.setFont(Roboto_20);
-  display.setTextAlignment(TEXT_ALIGN_LEFT);
-  display.clear();
-  display.drawStringMaxWidth(0, 0, 128, "Initializing, please wait...");
-  display.display();
-  delay(100);
 
   //Création du Mutex pour les variables d'accélération et d'angle
   xSemaphore_AccelGyro_Data = xSemaphoreCreateMutex();
@@ -718,7 +716,8 @@ void setupSessionRecording() {
     display.drawStringMaxWidth(0, 0, 128, "Card mount failed");
     display.display();
     delay(5000);
-  
+    
+    vTaskDelete(NULL);
     return;
   }
 
@@ -751,8 +750,9 @@ void setupSessionRecording() {
     display.clear();
     display.drawStringMaxWidth(0, 0, 128, "Root dir unavailable");
     display.display();
-    delay(1000);
-  
+    delay(2000);
+
+    vTaskDelete(NULL);
     return;
   }
   else {
@@ -761,7 +761,7 @@ void setupSessionRecording() {
     display.clear();
     display.drawStringMaxWidth(0, 0, 128, "Root dir available");
     display.display();
-    delay(1000);
+    delay(2000);
   
     snprintf(dayDir_FullPath, 18, "%s/%02u~%02u~%02u", projectRootDir, day(), month(), year() % 100);
     
@@ -773,8 +773,9 @@ void setupSessionRecording() {
       display.clear();
       display.drawStringMaxWidth(0, 0, 128, "Day dir unavailable");
       display.display();
-      delay(1000);
-  
+      delay(2000);
+
+      vTaskDelete(NULL);
       return;
     }
     else {
@@ -783,7 +784,7 @@ void setupSessionRecording() {
       display.clear();
       display.drawStringMaxWidth(0, 0, 128, "Day dir available");
       display.display();
-      delay(1000);
+      delay(2000);
   
       snprintf(sessionFile_FullPath, 31, "%s/%02u-%02u-%02u.txt", dayDir_FullPath, hour(), minute(), second());
           
@@ -797,8 +798,9 @@ void setupSessionRecording() {
         display.clear();
         display.drawStringMaxWidth(0, 0, 128, "Session file unavailable");
         display.display();
-        delay(1000);
-  
+        delay(2000);
+
+        vTaskDelete(NULL);
         return;
       }
       else {
@@ -807,7 +809,7 @@ void setupSessionRecording() {
         display.clear();
         display.drawStringMaxWidth(0, 0, 128, "Session file available");
         display.display();
-        delay(1000);
+        delay(2000);
   
         if (!appendToSessionFile(SD, sessionFile_FullPath, "\r\n")) {
           Serial.printf("\nSession file couldn't be appended with CRLF\n\n");
@@ -815,8 +817,9 @@ void setupSessionRecording() {
           display.clear();
           display.drawStringMaxWidth(0, 0, 128, "Session file not appended");
           display.display();
-          delay(1000);
-  
+          delay(2000);
+
+          vTaskDelete(NULL);
           return;
         }
         else {
@@ -825,7 +828,7 @@ void setupSessionRecording() {
           display.clear();
           display.drawStringMaxWidth(0, 0, 128, "Session file appended");
           display.display();
-          delay(1000);
+          delay(2000);
         }
       }
     }
@@ -1217,15 +1220,30 @@ void setupWebServer() {
   if (!SD.begin(SD_CS_pin)) { // see if the card is present and can be initialised. Wemos SD-Card CS uses D8 
     Serial.println(F("Card failed or not present, no SD Card data logging possible..."));
     SD_present = false; 
+    
+    display.clear();
+    display.drawStringMaxWidth(0, 0, 128, "SD mount failed");
+    display.display();
+    delay(5000);
   } 
   else
   {
     Serial.println(F("Card initialised... file access enabled..."));
     SD_present = true; 
+    
+    display.clear();
+    display.drawStringMaxWidth(0, 0, 128, "SD initialized");
+    display.display();
+    delay(5000);
   }
   
   if (!WiFi.config(local_IP, gateway, subnet, dns)) { //WiFi.config(ip, gateway, subnet, dns1, dns2);
     Serial.println("WiFi STATION Failed to configure Correctly"); 
+    
+    display.clear();
+    display.drawStringMaxWidth(0, 0, 128, "WiFi failed");
+    display.display();
+    delay(5000);
   } 
   
   if (SD_present) {
@@ -1239,6 +1257,11 @@ void setupWebServer() {
     if(!wifiDetails){
       Serial.printf("Failed to open file '%s' for reading, falling back to ssid and password from Network.h\n", pathToWifiDetails);
       wifiMulti.addAP(ssid_1, password_1);
+      
+      display.clear();
+      display.drawStringMaxWidth(0, 0, 128, "WiFi details failed");
+      display.display();
+      delay(5000);
     }
     else {
       Serial.printf("Reading from file '%s'\n", pathToWifiDetails);
@@ -1271,12 +1294,17 @@ void setupWebServer() {
         Serial.printf("WiFi details fetched from SD :     SSID : '%s'     PASSWORD: '%s'\n", ssid, password);
         
         wifiMulti.addAP(ssid, password);
+      
+        display.clear();
+        display.drawStringMaxWidth(0, 0, 128, "WiFi details success");
+        display.display();
+        delay(5000);
       } 
     }
 
   }
   else {
-    wifiMulti.addAP(ssid_1, password_1); 
+    vTaskDelete(NULL);
   } 
   
   Serial.println("Connecting ...");
@@ -1284,6 +1312,12 @@ void setupWebServer() {
     delay(100); Serial.print('.');
   }
   Serial.println("\nConnected to "+WiFi.SSID()+" Use Domain name : "+servername+".local or IP address: "+WiFi.localIP().toString()); 
+    
+  display.clear();
+  display.drawStringMaxWidth(0, 0, 128, String("WiFi: " + WiFi.SSID()));
+  display.display();
+  delay(5000);
+    
   if (!MDNS.begin(servername)) {
     Serial.println(F("Error setting up MDNS responder!")); 
     ESP.restart(); 
@@ -1296,6 +1330,15 @@ void setupWebServer() {
   
   server.begin();
   Serial.println("HTTP server started");
+
+  display.clear();
+  display.drawStringMaxWidth(0, 0, 128, "Server launched");
+  display.display();
+  delay(5000);
+
+  display.clear();
+  display.drawStringMaxWidth(0, 0, 128, String("IP: "+WiFi.localIP().toString()));
+  display.display();
 
   //Création de la routine de lecture GPS, accéléromètre et gyroscope, et affichage des données sur le LCD i2C
   xTaskCreatePinnedToCore(
@@ -1333,6 +1376,13 @@ void loopWebServer(void * pvParameters){
 
 
 
+void IRAM_ATTR changeChoiceBtn() {
+  choiceSession = !choiceSession;
+}
+void IRAM_ATTR launchProgramBtn() {
+  launchProgram = !launchProgram;
+}
+
 void setup()
 {
   //Ouverture des liaisons séries
@@ -1341,13 +1391,54 @@ void setup()
     vTaskDelay(10); 
 
   Serial.println();
-  
-  bool launchSession = false;
 
-  if(launchSession){
+  //Initialisation de l'écran
+  display.init();
+  display.flipScreenVertically();
+  display.setFont(Roboto_20);
+  display.setTextAlignment(TEXT_ALIGN_LEFT);
+  display.clear();
+  display.drawStringMaxWidth(0, 0, 128, "Initializing, please wait...");
+  display.display();
+  delay(100);
+  
+  char * menuDispSessionRecorder = ">SessionRec FileTransfer";
+  char * menuDispFileTransfer = "SessionRec >FileTransfer";
+
+  display.clear();
+  display.drawStringMaxWidth(0, 0, 128, "SessionRec FileTransfer");
+  display.display();
+  delay(100);
+
+  attachInterrupt(btnChoicePin, changeChoiceBtn, RISING); //D2
+  attachInterrupt(btnLaunchPin, launchProgramBtn, RISING); //D4
+
+  while(!launchProgram) {
+    if(choiceSession) {
+      display.clear();
+      display.drawStringMaxWidth(0, 0, 128, menuDispSessionRecorder);
+      display.display();
+    }
+    else {
+      display.clear();
+      display.drawStringMaxWidth(0, 0, 128, menuDispFileTransfer);
+      display.display();
+    }
+    delay(50);
+  }
+
+  if(choiceSession){
+    display.clear();
+    display.drawStringMaxWidth(0, 0, 128, "Launching SessionRec");
+    display.display();
+    delay(2000);
     setupSessionRecording();
   }
   else {
+    display.clear();
+    display.drawStringMaxWidth(0, 0, 128, "Launching FileTransfer");
+    display.display();
+    delay(2000);
     setupWebServer();
   }
 }

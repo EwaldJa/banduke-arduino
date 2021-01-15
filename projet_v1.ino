@@ -188,46 +188,32 @@ SemaphoreHandle_t xSemaphore_I2C_Communication = NULL;
 /*Checks if the root directory of the project exixts, if not, creates it. 
   Returns TRUE if everything went smoothly, FALSE otherwise*/
 bool checkOrCreateRootDir(fs::FS &fs, const char * rootPath) {
-  Serial.printf("Checking or creating project root directory '%s'\n", rootPath);
   File root = fs.open(rootPath);
   
   if(!root){
-    Serial.printf("Failed to open directory '%s'\n", rootPath);
-    Serial.printf("Creating Dir '%s'\n", rootPath);
     if(fs.mkdir(rootPath)){
-      Serial.println("Dir created");
       return true;
     } 
     else {
-      Serial.println("mkdir failed");
       return false;
     }
   }
   
   else {
     if(!root.isDirectory()){
-      Serial.println("Not a directory");
-      Serial.printf("Deleting file '%s'\n", rootPath);
       if(fs.remove(rootPath)){
-        Serial.println("File deleted");
-        
-        Serial.printf("Creating Dir '%s'\n", rootPath);
         if(fs.mkdir(rootPath)){
-          Serial.println("Dir created");
           return true;
         } 
         else {
-          Serial.println("mkdir failed");
           return false;
         }
       } 
       else {
-        Serial.println("Delete failed");
         return false;
       }
     }
     else {
-      Serial.printf("Directory '%s' already exists\n", rootPath);
       return true;
     }
   }
@@ -241,41 +227,28 @@ bool checkOrCreateRootDir(fs::FS &fs, const char * rootPath) {
 bool checkOrCreateDayDir(fs::FS &fs, const char * dayDir_FullPath) {
   File dayDir = fs.open(dayDir_FullPath);
   if(!dayDir){
-    Serial.printf("Failed to open directory '%s'\n", dayDir_FullPath);
-    Serial.printf("Creating Dir '%s'\n", dayDir_FullPath);
     if(fs.mkdir(dayDir_FullPath)){
-      Serial.println("Dir created");
       return true;
     } 
     else {
-      Serial.println("mkdir failed");
       return false;
     }
   }
   else {
     if(!dayDir.isDirectory()){
-      Serial.println("Not a directory");
-      Serial.printf("Deleting file '%s'\n", dayDir_FullPath);
       if(fs.remove(dayDir_FullPath)){
-        Serial.println("File deleted");
-        
-        Serial.printf("Creating Dir '%s'\n", dayDir_FullPath);
         if(fs.mkdir(dayDir_FullPath)){
-          Serial.println("Dir created");
           return true;
         } 
         else {
-          Serial.println("mkdir failed");
           return false;
         }
       } 
       else {
-        Serial.println("Delete failed");
         return false;
       }
     }
     else {
-      Serial.printf("Directory '%s' already exists\n", dayDir_FullPath);
       return true;
     }
   }
@@ -288,21 +261,16 @@ bool checkOrCreateDayDir(fs::FS &fs, const char * dayDir_FullPath) {
 /*Creates or overwrite the txt file for the current session. 
   Returns TRUE if everything went smoothly, FALSE otherwise*/
 bool createOrOverWriteSessionFile(fs::FS &fs, const char * sessionFile_FullPath, char * startTimeMessage) {
-  Serial.printf("Writing file: %s\n", sessionFile_FullPath);
-
   File sessionFile = fs.open(sessionFile_FullPath, FILE_WRITE);
   if(!sessionFile){
-    Serial.printf("Failed to open file '%s' for writing\n", sessionFile_FullPath);
     sessionFile.close();
     return false;
   }
   if(sessionFile.print(startTimeMessage)){
-    Serial.printf("File written with start message '%s'\n", startTimeMessage);
     sessionFile.close();
     return true;
   } 
   else {
-    Serial.printf("Write failed for start message '%s'\n", startTimeMessage);
     sessionFile.close();
     return false;
   }
@@ -314,21 +282,16 @@ bool createOrOverWriteSessionFile(fs::FS &fs, const char * sessionFile_FullPath,
 /*Appends latest data to the txt file of the current session. 
   Returns TRUE if everything went smoothly, FALSE otherwise*/
 bool appendToSessionFile(fs::FS &fs, const char * sessionFile_FullPath, char * messageToAppend) {
-  Serial.printf("Appending to file: %s\n", sessionFile_FullPath);
-
   File sessionFile = fs.open(sessionFile_FullPath, FILE_APPEND);
   if(!sessionFile){
-    Serial.printf("Failed to open file '%s' for appending\n", sessionFile_FullPath);
     sessionFile.close();
     return false;
   }
   if(sessionFile.print(messageToAppend)){
-    Serial.printf("Message '%s' appended\n", messageToAppend);
     sessionFile.close();
     return true;
   } 
   else {
-    Serial.printf("Append of '%s' failed\n", messageToAppend);
     sessionFile.close();
     return false;
   }
@@ -356,8 +319,6 @@ void HomePage(){
 }
 
 void File_Download(){ // This gets called twice, the first pass selects the input, the second pass then processes the command line arguments
-  Serial.println(server.args());
-  Serial.println(server.arg(0));
   if (server.args() > 0 ) { // Arguments were received
     if (server.hasArg("download")) SD_file_download(server.arg(0));
   }
@@ -422,7 +383,6 @@ void printDirectory(const char * dirname){
     bool toSkip = file_name.startsWith("/System Volume Information");
     if(file.isDirectory()){
       if(!toSkip) {
-        Serial.println(String(file.isDirectory()?"Dir ":"File ")+file_name);
         webpage += "<tr><td>"+file_name+"</td><td>Dir</td></tr>";
       }
       printDirectory(file.name());
@@ -430,9 +390,7 @@ void printDirectory(const char * dirname){
     else
     {
       if(!toSkip) {
-        //Serial.print(String(file.name())+"\t");
         webpage += "<tr><td>"+file_name+"</td>";
-        Serial.print(String(file.isDirectory()?"Dir ":"File ")+file_name+"\t");
         webpage += "<td>File</td>";
         int bytes = file.size();
         String fsize = "";
@@ -441,7 +399,6 @@ void printDirectory(const char * dirname){
         else if(bytes < (1024 * 1024 * 1024)) fsize = String(bytes/1024.0/1024.0,3)+" MB";
         else                                  fsize = String(bytes/1024.0/1024.0/1024.0,3)+" GB";
         webpage += "<td>"+fsize+"</td><td class='action_td'><a href='/download?download="+file_name+"'><i class='gg-software-download' style='margin-left:7px'></i></a></td><td class='action_td'><a href='/delete?delete="+file_name+"'><i class='gg-trash'></i></a></td></tr>";
-        Serial.println(String(fsize));
       }
     }
     file = root.openNextFile();
@@ -460,11 +417,9 @@ void SD_file_delete(String filename) { // Delete the file
   if (SD_present) { 
     SendHTML_Header();
     File dataFile = SD.open("/"+filename, FILE_READ); // Now read data from SD Card 
-    Serial.print("Deleting file: "); Serial.println(filename);
     if (dataFile)
     {
       if (SD.remove("/"+filename)) {
-        Serial.println(F("File deleted successfully"));
         webpage += "<h3>File '"+filename+"' has been erased</h3>"; 
         webpage += F("<a href='/'>[Home]</a><br><br>");
       }
@@ -562,7 +517,6 @@ String file_size(int bytes){
 void setupSessionRecording() {
   
   ss.begin(9600);
-  Serial.println();
 
   //Création du Mutex pour les variables d'accélération et d'angle
   xSemaphore_AccelGyro_Data = xSemaphoreCreateMutex();
@@ -574,13 +528,6 @@ void setupSessionRecording() {
   xSemaphore_GPS_Data = xSemaphoreCreateMutex();
 
   vTaskDelay(1000);
-
-  Serial.println("############################################################################################################\n");
-  Serial.println("Starting app, please wait...\n");
-  
-  Serial.println("****************************************");
-  Serial.println("Launching GPS...");
-
   
   display.clear();
   display.drawStringMaxWidth(0, 0, 128, "Starting GPS, please wait...");
@@ -593,7 +540,6 @@ void setupSessionRecording() {
     while (ss.available())
     {
       char c = ss.read();
-      //Serial.write(c); // uncomment this line if you want to see the GPS data flowing
       gps.encode(c);
     }
   }
@@ -609,27 +555,6 @@ void setupSessionRecording() {
 
   //while( (abs(prev_pos_lat) <= 0.001) && (abs(prev_pos_lng) <= 0.001) && (abs(prev_pos_alt) <= 0.1) ) {
   while(!gps.location.isValid() || !gps.date.isValid() || !gps.time.isValid()) {
-    Serial.println("   GPS still inaccurate : ");
-    Serial.print("   Location is valid : ");
-    Serial.print(gps.location.isValid());
-    Serial.print("   Date is valid : ");
-    Serial.print(gps.date.isValid());
-    Serial.print("   Time is valid : ");
-    Serial.print(gps.time.isValid());
-    Serial.print("   Sentences with fix : ");
-    Serial.print(gps.sentencesWithFix());
-    Serial.print("   Satellites : ");
-    Serial.print(gps.satellites.value());
-    Serial.print("   Latitude : ");
-    Serial.print(gps.location.lat(), 10);
-    Serial.print("   Longitude : ");
-    Serial.print(gps.location.lng(), 10);
-    Serial.print("   Altitude : ");
-    Serial.print(gps.altitude.meters(), 2);
-    Serial.print("   Heure : ");
-    Serial.print(gps_time_str);
-    Serial.print("   Date : ");
-    Serial.println(gps_date_str);
     prev_pos_lat = gps.location.lat();
     prev_pos_lng = gps.location.lng();
     prev_pos_alt = gps.altitude.meters();
@@ -637,9 +562,7 @@ void setupSessionRecording() {
     snprintf(gps_date_str, 9, "%02u/%02u/%04u", gps.date.day(), gps.date.month(), gps.date.year());
     while (ss.available())
     {
-      if(gps.encode(ss.read())) {
-        Serial.println("GPS data updated !");
-      }
+      gps.encode(ss.read());
     }
     delay(1000);
   }
@@ -647,22 +570,6 @@ void setupSessionRecording() {
 
   snprintf(gps_time_str, 9, "%02u:%02u:%02u", gps.time.hour(), gps.time.minute(), gps.time.second());
   snprintf(gps_date_str, 9, "%02u/%02u/%02u", gps.date.day(), gps.date.month(), gps.date.year());
-  
-  Serial.println("GPS tracking current position");
-  Serial.print("Satellites : ");
-  Serial.print(gps.satellites.value());
-  Serial.print("   Latitude : ");
-  Serial.print(gps.location.lat(), 10);
-  Serial.print("   Longitude : ");
-  Serial.print(gps.location.lng(), 10);
-  Serial.print("   Altitude : ");
-  Serial.print(gps.altitude.meters(), 2);
-  Serial.print("   Vitesse : ");
-  Serial.print(gps.speed.kmph(), 2);
-  Serial.print("   Heure : ");
-  Serial.print(gps_time_str);
-  Serial.print("   Date : ");
-  Serial.println(gps_date_str);
 
   prev_pos_lat = gps.location.lat();
   prev_pos_lng = gps.location.lng();
@@ -672,17 +579,13 @@ void setupSessionRecording() {
   gps_lng = gps.location.lng(), 
   gps_alt = gps.altitude.meters(), 
   gps_speed = gps.speed.kmph();
-  Serial.println("****************************************\n");
 
-
-
-  Serial.println("++++++++++++++++++++++++++++++++++++++++");
-  Serial.println("Setting board time from GPS data");
   
   display.clear();
   display.drawStringMaxWidth(0, 0, 128, "Setting time");
   display.display();
   delay(100);
+  
   
   date_Years = gps.date.year();
   date_Months = gps.date.month();
@@ -693,16 +596,7 @@ void setupSessionRecording() {
   setTime(time_Hours, time_Minutes, time_Seconds, date_Days, date_Months, date_Years);
   snprintf(time_str, 9, "%02u:%02u:%02u", hour(), minute(), second());
   snprintf(date_str, 9, "%02u/%02u/%02u", day(), month(), year());
-  Serial.print("Board time : ");
-  Serial.println(time_str);
-  Serial.print("Board date : ");
-  Serial.println(date_str);
-  Serial.println("++++++++++++++++++++++++++++++++++++++++\n");
 
-
-
-  Serial.println("<><><><><><><><><><><><><><><><><><><><>");
-  Serial.println("Initializing SD card and storage...");
   
   display.clear();
   display.drawStringMaxWidth(0, 0, 128, "Checking SD card...");
@@ -710,7 +604,6 @@ void setupSessionRecording() {
   delay(100);
 
   if(!SD.begin(CSpin)){
-    Serial.println("Card mount failed");
 
     display.clear();
     display.drawStringMaxWidth(0, 0, 128, "Card mount failed");
@@ -722,7 +615,6 @@ void setupSessionRecording() {
   }
 
   if(SD.cardType() == CARD_NONE){
-    Serial.println("No SD card attached");
 
     display.clear();
     display.drawStringMaxWidth(0, 0, 128, "No SD card attached");
@@ -736,17 +628,8 @@ void setupSessionRecording() {
   int usedMegaBytes = (SD.usedBytes() / (1024 * 1024));
   int freeMegaBytes = (totalMegaBytes - usedMegaBytes);
   double freeSpace = ((100.0 * freeMegaBytes) / totalMegaBytes);
-  
-  if (freeSpace < 10.0) {
-    Serial.printf("WARNING ! Only %dMB (%f%%) of free space remaining (%dMB used of a total of %dMB space)\n", freeMegaBytes, freeSpace, usedMegaBytes, totalMegaBytes);
-  }
-  else {
-    Serial.printf("%dMB (%f%%) of free space remaining (%dMB used of a total of %dMB space)\n", freeMegaBytes, freeSpace, usedMegaBytes, totalMegaBytes);
-  }
 
   if(!checkOrCreateRootDir(SD, projectRootDir)) {
-    Serial.printf("\nProject root directory couldn't be created with path '%s'\n\n", projectRootDir);
-
     display.clear();
     display.drawStringMaxWidth(0, 0, 128, "Root dir unavailable");
     display.display();
@@ -756,20 +639,14 @@ void setupSessionRecording() {
     return;
   }
   else {
-    Serial.printf("\nProject root directory exists, its path is '%s'\n\n", projectRootDir);
-
     display.clear();
     display.drawStringMaxWidth(0, 0, 128, "Root dir available");
     display.display();
     delay(2000);
   
     snprintf(dayDir_FullPath, 18, "%s/%02u~%02u~%02u", projectRootDir, day(), month(), year() % 100);
-    
-    Serial.printf("Checking or creating day directory '%s'\n", dayDir_FullPath);
         
     if(!checkOrCreateDayDir(SD, dayDir_FullPath)) {
-      Serial.printf("\nDay directory couldn't be created with path '%s'\n\n", dayDir_FullPath);
-
       display.clear();
       display.drawStringMaxWidth(0, 0, 128, "Day dir unavailable");
       display.display();
@@ -779,8 +656,6 @@ void setupSessionRecording() {
       return;
     }
     else {
-      Serial.printf("\nDay directory exists, its path is '%s'\n\n", dayDir_FullPath);
-
       display.clear();
       display.drawStringMaxWidth(0, 0, 128, "Day dir available");
       display.display();
@@ -793,8 +668,6 @@ void setupSessionRecording() {
       snprintf(startTimeMessage, 40, "Starttime#%04u-%02u-%02uT%02u:%02u:%02u.%03u+0000", year(), month(), day(), hour(), minute(), second());
   
       if (!createOrOverWriteSessionFile(SD, sessionFile_FullPath, startTimeMessage)) {
-        Serial.printf("\nSession file couldn't be created with path is '%s'\n\n", sessionFile_FullPath);
-
         display.clear();
         display.drawStringMaxWidth(0, 0, 128, "Session file unavailable");
         display.display();
@@ -804,16 +677,12 @@ void setupSessionRecording() {
         return;
       }
       else {
-        Serial.printf("\nSession file exists, its path is '%s', and now has the start message '%s'\n\n", sessionFile_FullPath, startTimeMessage);
-
         display.clear();
         display.drawStringMaxWidth(0, 0, 128, "Session file available");
         display.display();
         delay(2000);
   
         if (!appendToSessionFile(SD, sessionFile_FullPath, "\r\n")) {
-          Serial.printf("\nSession file couldn't be appended with CRLF\n\n");
-
           display.clear();
           display.drawStringMaxWidth(0, 0, 128, "Session file not appended");
           display.display();
@@ -823,8 +692,6 @@ void setupSessionRecording() {
           return;
         }
         else {
-          Serial.printf("\nSession file succesfully appended with CRLF\n\n");
-
           display.clear();
           display.drawStringMaxWidth(0, 0, 128, "Session file appended");
           display.display();
@@ -833,10 +700,6 @@ void setupSessionRecording() {
       }
     }
   }
-
-  Serial.println("SD card and storage succesfully initialized !");
-  Serial.println("<><><><><><><><><><><><><><><><><><><><>\n");
-
   
   
   display.clear();
@@ -846,21 +709,7 @@ void setupSessionRecording() {
 
   //Initialisation et calibration de l'accéléromètre/gyroscope
   mpu.Initialize();
-  
-  Serial.println("========================================");
-  Serial.println("Starting gyroscope/accelerometer calibration...");
   mpu.Calibrate();
-  Serial.println("Calibration complete!");
-  Serial.println("Gyro Offsets:");
-  Serial.print("  GyroX Offset = ");
-  Serial.println(mpu.GetGyroXOffset());
-  Serial.print("  GyroY Offset = ");
-  Serial.println(mpu.GetGyroYOffset());
-  Serial.print("  GyroZ Offset = ");
-  Serial.println(mpu.GetGyroZOffset());
-  Serial.println("Accel Offsets: None");
-  Serial.println("========================================\n");
-
 
   display.clear();
   display.drawStringMaxWidth(0, 0, 128, "Application launched !");
@@ -891,10 +740,6 @@ void setupSessionRecording() {
                     5,           // priority of the task 
                     NULL,      // Task handle to keep track of created task 
                     1);          // pin task to core 1
-    
-  
-  Serial.println("Application launched ! \n");
-  Serial.println("############################################################################################################\n");
 
   /*END OF SETUP SESSION RECORDING LOOP*/
 }
@@ -903,64 +748,6 @@ void setupSessionRecording() {
 
 
 
-
-
-
-void displayGPS(int gps_nb_sats, double gps_latitude, double gps_longitude, double gps_altitude, double gps_spd) {
-  Serial.print("Satellites : ");
-  Serial.print(gps_nb_sats);
-  Serial.print("   Latitude : ");
-  Serial.print(gps_latitude, 10);
-  Serial.print("   Longitude : ");
-  Serial.print(gps_longitude, 10);
-  Serial.print("   Altitude : ");
-  Serial.print(gps_altitude, 2);
-  Serial.print("   Vitesse : ");
-  Serial.print(gps_spd, 2);
-
-  snprintf(time_str, 9, "%02u:%02u:%02u", hour(), minute(), second());
-  snprintf(date_str, 9, "%02u/%02u/%02u", day(), month(), year());
-  Serial.print("   Board time : ");
-  Serial.print(time_str);
-  Serial.print("   Board date : ");
-  Serial.println(date_str);
-  
-  double distance_m =
-    TinyGPSPlus::distanceBetween(
-      gps_latitude,
-      gps_longitude,
-      prev_pos_lat,
-      prev_pos_lng);
-  deniv = prev_pos_alt - gps_altitude;
-     
-  Serial.print("            Prev latitude : ");
-  Serial.print(prev_pos_lat, 10);
-  Serial.print("   longitude : ");
-  Serial.print(prev_pos_lng, 10);
-  Serial.print("   altitude : ");
-  Serial.print(prev_pos_alt, 2);
-  Serial.print("   Distance (m) avec la dernière pos : ");
-  Serial.print(distance_m, 2);
-  Serial.print("   Dénivelé (m) avec la dernière pos : ");
-  Serial.println(deniv, 2);   
-    
-  //Réduction du bruit sur la position GPS
-  if(distance_m < SEUIL_DIST) {  
-    Serial.println("  Positions identiques !"); 
-  }
-    
-  Serial.print("            Distance totale (m) : ");
-  Serial.print(distance_tot, 2);
-  Serial.print("   dénivelé positif (m) : ");
-  Serial.print(deniv_pos, 2);
-  Serial.print("   dénivelé négatif (m) : ");
-  Serial.println(deniv_neg, 2);
-  Serial.println("");
-    
-  Serial.println("");
-
-  /*END OF DISPLAYING GPS LOOP*/
-}
 
 
 
@@ -1001,8 +788,6 @@ void grabDataAndSaveSession(void * pvParameters) {
     }
     else{
       //Impossible d'obtenir le Mutex (logiquement ne devrait pas arriver)
-      Serial.println("@@@@@@@@@@@@@@@@@@@\n  Mutex indisponible pour afficher les données GPS\n@@@@@@@@@@@@@@@@@@@");
-
       gps_data_fetched = false;
     }
 
@@ -1016,10 +801,7 @@ void grabDataAndSaveSession(void * pvParameters) {
       deniv = prev_pos_alt - temp_gps_alt;
       
       //Réduction du bruit sur la position GPS
-      if(distance_m < SEUIL_DIST) {  
-        Serial.println("  Positions identiques !"); 
-      }
-      else {
+      if(distance_m > SEUIL_DIST) {  
         if(deniv < 0.0) {
           deniv_neg += deniv;
         }
@@ -1032,9 +814,6 @@ void grabDataAndSaveSession(void * pvParameters) {
         prev_pos_lng = temp_gps_lng;
         prev_pos_alt = temp_gps_alt;
       }
-      /*DISPLAYING GPS DATA*/
-      //TODO : remove
-      displayGPS(temp_gps_satellites, temp_gps_lat, temp_gps_lng, temp_gps_alt, temp_gps_speed);
     }
 
     
@@ -1057,7 +836,6 @@ void grabDataAndSaveSession(void * pvParameters) {
     }
     else{
       //Impossible d'obtenir le Mutex (logiquement ne devrait pas arriver)
-      Serial.println("°°°°°°°°°°°°°°°°°°°\n  Mutex indisponible pour récupérer les valeurs d'accélération et d'angle\n°°°°°°°°°°°°°°°°°°°");
     }
 
     //GPS(lat, lon, alt, speed) -> ACC(x,y,z) -> GYR(x,y,z) -> CALC (dist, deniv+, deniv-)
@@ -1071,22 +849,8 @@ void grabDataAndSaveSession(void * pvParameters) {
     temp_accel_X, temp_accel_Y, temp_accel_Z, 
     temp_angle_X, temp_angle_Y, temp_angle_Z, 
     distance_tot, deniv_pos, deniv_neg);
-
-    //Serial.printf("\nData message : '%s'\n\n", messageToAppend);
     
-    if(appendToSessionFile(SD, sessionFile_FullPath, messageToAppend)) {
-      Serial.printf("Successfully appended to session file : '%s'\n", messageToAppend);
-    }
-    else {
-      Serial.printf("Append to session file failed for msg : '%s'\n", messageToAppend);
-    }
-    
-    
-    /*DISPLAYING ACCEL & GYRO DATA*/
-    String angle_str = "Angle   X:" + String(temp_angle_X,2) + " Y:" + String(temp_angle_Y,2) + " Z:" + String(temp_angle_Z,2);
-    String accel_str = "Accel   X:" + String(temp_accel_X,2) + " Y:" + String(temp_accel_Y,2) + " Z:" + String(temp_accel_Z,2);
-    Serial.println(angle_str);
-    Serial.println(accel_str);
+    appendToSessionFile(SD, sessionFile_FullPath, messageToAppend);
 
     delay(5);
 
@@ -1101,7 +865,7 @@ void grabDataAndSaveSession(void * pvParameters) {
 
 
 void readSensorsAndDisplayI2C(void * pvParameters){  
-  vTaskDelay(100);
+  vTaskDelay(100); /*Laisse le temps de supprimer la void loop*/
   for(;;){
     /*READING AND SAVING GPS DATA*/
     while (ss.available() > 0) {
@@ -1120,7 +884,6 @@ void readSensorsAndDisplayI2C(void * pvParameters){
         }
         else{
           //Impossible d'obtenir le Mutex (logiquement ne devrait pas arriver)
-          Serial.println("===================\n  Mutex indisponible pour mettre à jour les valeurs GPS\n===================");
         }
       }
     }
@@ -1149,7 +912,6 @@ void readSensorsAndDisplayI2C(void * pvParameters){
       }
       else{
         //Impossible d'obtenir le Mutex de communication I2C
-        Serial.println("¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤\n  Mutex I2C indisponible pour extraire les valeurs d'accélération et d'angle du capteur\n¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤¤");
       }
     }
   
@@ -1171,7 +933,6 @@ void readSensorsAndDisplayI2C(void * pvParameters){
     }
     else{
       //Impossible d'obtenir le Mutex (logiquement ne devrait pas arriver)
-      Serial.println("-------------------\n  Mutex non disponible pour mettre à jour les valeurs d'angle et d'accélération moyennées\n-------------------");
     }
   
     /*RESETTING TEMPORARY VALUES FOR ACCEL & GYRO DATA*/
@@ -1191,7 +952,7 @@ void readSensorsAndDisplayI2C(void * pvParameters){
       display.clear();
       display.drawStringMaxWidth(0, 0, 128,
         String(prev_pos_lat, 3) + 
-          ";" + String(prev_pos_lng, 3) + "\n" + 
+          ";" + String(prev_pos_lng, 3) + " " + 
           "alt:" + String(prev_pos_alt, 0) +
           ",sat:" + gps.satellites.value());
       display.display();
@@ -1201,7 +962,6 @@ void readSensorsAndDisplayI2C(void * pvParameters){
     }
     else{
       //Impossible d'obtenir le Mutex de communication I2C
-      Serial.println("~~~~~~~~~~~~~~~~~~~\n  Mutex I2C indisponible pour afficher les valeurs d'accélération et d'angle\n~~~~~~~~~~~~~~~~~~~");
     }
   }
 }
@@ -1216,9 +976,7 @@ void readSensorsAndDisplayI2C(void * pvParameters){
 
 
 void setupWebServer() {
-  Serial.print(F("Initializing SD card...\n")); 
   if (!SD.begin(SD_CS_pin)) { // see if the card is present and can be initialised. Wemos SD-Card CS uses D8 
-    Serial.println(F("Card failed or not present, no SD Card data logging possible..."));
     SD_present = false; 
     
     display.clear();
@@ -1228,7 +986,6 @@ void setupWebServer() {
   } 
   else
   {
-    Serial.println(F("Card initialised... file access enabled..."));
     SD_present = true; 
     
     display.clear();
@@ -1238,8 +995,6 @@ void setupWebServer() {
   }
   
   if (!WiFi.config(local_IP, gateway, subnet, dns)) { //WiFi.config(ip, gateway, subnet, dns1, dns2);
-    Serial.println("WiFi STATION Failed to configure Correctly"); 
-    
     display.clear();
     display.drawStringMaxWidth(0, 0, 128, "WiFi failed");
     display.display();
@@ -1255,7 +1010,6 @@ void setupWebServer() {
 
     File wifiDetails = SD.open(pathToWifiDetails);
     if(!wifiDetails){
-      Serial.printf("Failed to open file '%s' for reading, falling back to ssid and password from Network.h\n", pathToWifiDetails);
       wifiMulti.addAP(ssid_1, password_1);
       
       display.clear();
@@ -1264,7 +1018,6 @@ void setupWebServer() {
       delay(5000);
     }
     else {
-      Serial.printf("Reading from file '%s'\n", pathToWifiDetails);
       while(wifiDetails.available()){
         readByte = wifiDetails.read();
         if(readByte != EOF && readByte != '\n' && readByte != '\r' && readByte != '\t') {
@@ -1275,7 +1028,6 @@ void setupWebServer() {
         }
         readFromFile_Index++;
         if(readFromFile_Index == 388) {
-          Serial.println("Max size reached for readFromFile, falling back to ssid and password from Network.h");
           wifiMulti.addAP(ssid_1, password_1);
           parseDetails = false;
           break;
@@ -1283,16 +1035,12 @@ void setupWebServer() {
       }
       wifiDetails.close();
   
-      Serial.printf("Raw value read :  '%s'\n", readFromFile);
-
       if (parseDetails) {
         char* identifier = strtok(readFromFile, " :: ");
         strncpy(ssid, identifier, 128);
         identifier = strtok(NULL, " :: ");
         strncpy(password, identifier, 256);
-    
-        Serial.printf("WiFi details fetched from SD :     SSID : '%s'     PASSWORD: '%s'\n", ssid, password);
-        
+            
         wifiMulti.addAP(ssid, password);
       
         display.clear();
@@ -1307,11 +1055,9 @@ void setupWebServer() {
     vTaskDelete(NULL);
   } 
   
-  Serial.println("Connecting ...");
   while (wifiMulti.run() != WL_CONNECTED) { 
-    delay(100); Serial.print('.');
+    delay(100);
   }
-  Serial.println("\nConnected to "+WiFi.SSID()+" Use Domain name : "+servername+".local or IP address: "+WiFi.localIP().toString()); 
     
   display.clear();
   display.drawStringMaxWidth(0, 0, 128, String("WiFi: " + WiFi.SSID()));
@@ -1319,7 +1065,6 @@ void setupWebServer() {
   delay(5000);
     
   if (!MDNS.begin(servername)) {
-    Serial.println(F("Error setting up MDNS responder!")); 
     ESP.restart(); 
   }
   
@@ -1329,7 +1074,6 @@ void setupWebServer() {
   server.on("/dir",      SD_dir);
   
   server.begin();
-  Serial.println("HTTP server started");
 
   display.clear();
   display.drawStringMaxWidth(0, 0, 128, "Server launched");
@@ -1340,7 +1084,7 @@ void setupWebServer() {
   display.drawStringMaxWidth(0, 0, 128, String("IP: "+WiFi.localIP().toString()));
   display.display();
 
-  //Création de la routine de lecture GPS, accéléromètre et gyroscope, et affichage des données sur le LCD i2C
+  //Création de la routine pour gérer les connexions au serveur
   xTaskCreatePinnedToCore(
                     loopWebServer,   // Task function. 
                     "loopWebServer",     // name of task. 
@@ -1357,7 +1101,7 @@ void setupWebServer() {
 
 
 void loopWebServer(void * pvParameters){
-  vTaskDelay(100);
+  vTaskDelay(100); /*Laisse le temps de supprimer la void loop*/
   for(;;){
     server.handleClient();
   }
@@ -1385,13 +1129,6 @@ void IRAM_ATTR launchProgramBtn() {
 
 void setup()
 {
-  //Ouverture des liaisons séries
-  Serial.begin(115200);
-  while (!Serial)
-    vTaskDelay(10); 
-
-  Serial.println();
-
   //Initialisation de l'écran
   display.init();
   display.flipScreenVertically();
@@ -1446,7 +1183,5 @@ void setup()
 
 
 void loop(){
-  Serial.println("Will kill loop task...");
   vTaskDelete(NULL);
-  Serial.println("Loop task is more resilient than Chuck Norris");
 }
